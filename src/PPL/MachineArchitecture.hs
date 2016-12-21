@@ -3,7 +3,7 @@ module PPL.MachineArchitecture where
 import PPL.Instructions
 import PPL.Picture
 
-import Data.Array
+import Data.Array.IArray
 
 type MProg      = Array Int Instr       -- the machine programm
 
@@ -42,6 +42,8 @@ data MS         = MS { instr    :: ! MProg
                      , frames   :: ! [Mem]
                      , status   :: ! MStatus
                      }
+
+type MState     = MS
 
 -- -------------------------------------------------------------------
 
