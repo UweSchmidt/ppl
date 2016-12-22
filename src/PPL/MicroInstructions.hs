@@ -12,11 +12,8 @@ import Control.Monad
 
 import Control.Lens
 
-import Data.Array.IArray (bounds, (!))
-
-import           PPL.Instructions
-import           PPL.MachineArchitecture
-import           PPL.ShowMS
+import qualified Data.Array.IArray as IA
+import qualified Data.IntMap       as IM
 
 import System.IO
 
@@ -27,15 +24,40 @@ import Control.Exception        ( SomeException
 
 -- ----------------------------------------
 
+data Instr        = Instr -- dummy
+data MValue       = MV    -- dummy
+data Address      = LocA Int
+                  | AbsA Int
+
+data MStatus      = Ok
+                  | AddressViolation Address
+                  | PCoutOfRange
+                  | IOError String
+
+newtype MProg     = MProg {unMProg :: IA.Array Int Instr}
+newtype MSeg      = MSeg  {unMSeg  :: IM.IntMap MValue}
+type EvalStack    = [MValue]
+type RuntimeStack = [MSeg]
+
+data MState       = MS { instr  :: ! MProg
+                       , pc     :: ! Int
+                       , stack  :: ! EvalStack
+                       , mem    :: ! MSeg
+                       , frames :: ! RuntimeStack
+                       , status :: ! MStatus
+                       }
+
+-- ----------------------------------------
+
 newtype MicroCode a
-  = RT { unRT :: ExceptT MStatus (StateT MState IO) a }
+  = RT { unRT :: ExceptT () (StateT MState IO) a }
   deriving ( Functor, Applicative, Monad
            , MonadState MState
-           , MonadError MStatus
+           , MonadError ()
            , MonadIO
            )
 
-runMicroCode :: MicroCode a -> MS -> IO (Either MStatus a, MState)
+runMicroCode :: MicroCode a -> MState -> IO (Either () a, MState)
 runMicroCode m st
   = (runStateT . runExceptT . unRT $ m) st
 
@@ -46,10 +68,19 @@ runMicroCode m st
 io :: IO a -> MicroCode a
 io x = do
   r <- liftIO $ try x
-  either (throwError . Exc . showExc) return $ r
+  either (abort . IOError . showExc) return $ r
   where
     showExc :: IOException -> String
     showExc = show
+
+abort :: MStatus -> MicroCode a
+abort exc = do
+  msStatus .= exc
+  throwError ()
+
+check :: MStatus -> MicroCode (Maybe a) -> MicroCode a
+check exc cmd =
+  cmd >>= maybe (abort exc) return
 
 -- ----------------------------------------
 
@@ -59,13 +90,13 @@ msInstr k ms = (\ new -> ms {instr = new}) <$> k (instr ms)
 msPc :: Lens' MState Int
 msPc k ms = (\ new -> ms {pc = new}) <$> k (pc ms)
 
-msMem :: Lens' MState Mem
+msMem :: Lens' MState MSeg
 msMem k ms = (\ new -> ms {mem = new}) <$> k (mem ms)
 
-msStack :: Lens' MState Stack
+msStack :: Lens' MState EvalStack
 msStack k ms = (\ new -> ms {stack = new}) <$> k (stack ms)
 
-msFrames :: Lens' MState [Mem]
+msFrames :: Lens' MState RuntimeStack
 msFrames k ms = (\ new -> ms {frames = new}) <$> k (frames ms)
 
 msStatus :: Lens' MState MStatus
@@ -73,14 +104,17 @@ msStatus k ms = (\ new -> ms {status = new}) <$> k (status ms)
 
 -- ----------------------------------------
 
-getInstr :: MicroCode (Maybe Instr)
-getInstr = do
+getInstr :: MicroCode Instr
+getInstr = check PCoutOfRange getInstr'
+
+getInstr' :: MicroCode (Maybe Instr)
+getInstr' = do
   i  <- use msPc
-  pg <- use msInstr
-  let (lb, ub) = bounds pg
+  pg <- uses msInstr unMProg
+  let (lb, ub) = IA.bounds pg
   return $
     if (lb <= i && i <= ub)
-    then return $ pg ! i
+    then return $ pg IA.! i
     else mzero
 
 getPc :: MicroCode Int
@@ -94,20 +128,19 @@ incrPc = msPc += 1
 
 -- ----------------------------------------
 
-readMem :: Address -> MicroCode (Maybe MV)
-readMem (AbsA addr) = do
-  mm <- use msMem
-  return $
-    if 0 <= addr && addr < length mm
-    then return $ mm !! addr
-    else mzero
+readMem :: Address -> MicroCode MValue
+readMem a =
+  check (AddressViolation a) $ readMem' a
 
-readMem (LocA addr) = do
+readMem' :: Address -> MicroCode (Maybe MValue)
+readMem' (AbsA addr) = do
+  mm <- uses msMem unMSeg
+  return $ IM.lookup addr mm
+
+readMem' (LocA addr) = do
   sf <- use msFrames
   return $ do
-    f <- sf ^? _head
-    if 0 <= addr && addr < length f
-      then return $ f !! addr
-      else mzero
+    f <- sf ^? _head . to unMSeg
+    IM.lookup addr f
 
 -- ----------------------------------------
