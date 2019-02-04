@@ -1,0 +1,10 @@
+function mult(a : int; b : int) : int
+  if a > 0
+  then mult(a - 1, b) + b
+  else if a = 0
+  then 0
+  else 0 - mult(0 - a, b)
+;
+begin
+writeln("7 * 13 = " + mult(7,13).toString)
+end
