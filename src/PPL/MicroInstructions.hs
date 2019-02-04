@@ -8,17 +8,12 @@ module PPL.MicroInstructions where
 import Control.Applicative (Applicative(..))
 import Control.Monad.Except
 import Control.Monad.State
-import Control.Monad
-
 import Control.Lens
 
 import qualified Data.Array.IArray as IA
 import qualified Data.IntMap       as IM
 
-import System.IO
-
-import Control.Exception        ( SomeException
-                                , IOException
+import Control.Exception        ( IOException
                                 , try
                                 )
 
