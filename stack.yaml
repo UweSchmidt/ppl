@@ -1,10 +1,5 @@
-# For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
-
-# Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-# LTS with ghc-8.4.4
-resolver: lts-12.17
-
-# resolver: lts-5.9
+# LTS with ghc-8.6.4
+resolver: lts-13.10
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -20,16 +15,4 @@ flags: {}
 extra-package-dbs: []
 
 # Control whether we use the GHC we find on the path
-# system-ghc: true
-
-# Require a specific version of stack, using version ranges
-# require-stack-version: -any # Default
-# require-stack-version: >= 0.1.4.0
-
-# Override the architecture used by stack, especially useful on Windows
-# arch: i386
-# arch: x86_64
-
-# Extra directories used by stack for building
-# extra-include-dirs: [/path/to/dir]
-# extra-lib-dirs: [/path/to/dir]
+system-ghc: true
