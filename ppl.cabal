@@ -1,6 +1,6 @@
 name:                ppl
-version:             0.1.0.3
--- please run: make version when incrementing the version number
+version:             0.2.0.0
+-- please run: make version after incrementing the version number
 synopsis:            Compiler construction example for a DSL to process pictures
 author:              Uwe Schmidt
 maintainer:          si@fh-wedel.de

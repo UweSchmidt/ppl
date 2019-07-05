@@ -138,12 +138,12 @@ showIllegalWrite        = showIllegalAddr "write"
 
 showIllegalAddr         :: String -> Address -> MS -> String
 showIllegalAddr err addr@(AbsA _) ms
-    = err 
+    = err
       ++ " absolut"
       ++ showIllegalAddr1 addr 0 ub
     where
     ub = length (mem ms) - 1
-    
+
 
 showIllegalAddr err addr@(LocA _) ms
     = err
@@ -177,10 +177,17 @@ showIllegalInstr instr1
     = "unimplemented instr: " ++ showInstr instr1
 
 showIllegalOperand      :: String -> MV -> String
-showIllegalOperand err v
+showIllegalOperand = showIllegalOperand' showMV
+
+showIllegalOperand'     :: (a -> String) -> String -> a -> String
+showIllegalOperand' show' err v
     = "illegal operand: "
       ++ err
       ++ " expected, but got "
-      ++ showMV v
+      ++ show' v
+
+showUndefOperation      :: String -> String
+showUndefOperation err
+    = "operation undefined: " ++ err
 
 -- -------------------------------------------------------------------

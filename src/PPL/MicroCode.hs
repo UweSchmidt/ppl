@@ -6,6 +6,7 @@ import           PPL.Error
 import           PPL.Instructions
 import           PPL.MachineArchitecture
 import           PPL.ShowMS
+import           PPL.Picture (Picture)
 
 import           System.IO
 
@@ -214,62 +215,143 @@ writeMV addr v
 clearMStatus    :: MST ()
 clearMStatus    = changeStateWith clearStatus
 
-checkType       :: (MV -> Bool) -> String -> MV -> MST MV
-checkType isOfType err v
-    = if isOfType v
-      then return v
-      else throw (showIllegalOperand err v)
+-- ----------------------------------------
+--
+-- push, pop and check ops for raw values
 
-checkNotUndef, checkInt, checkFloat, checkString, checkList, checkPic,
- checkRA        :: MV -> MST MV
+pushInt         :: Int -> MST ()
+pushInt         = pushMV . VInt
 
-checkNotUndef   = checkType isNotUndef  "not an undefined value"
-checkInt        = checkType isInt       "int"
-checkFloat      = checkType isFloat     "float"
-checkString     = checkType isString    "string"
-checkList       = checkType isList      "list"
-checkPic        = checkType isPic       "picture"
-checkRA         = checkType isRA        "return address"
+pushFloat       :: Double -> MST ()
+pushFloat       = pushMV . VFloat
+
+pushString      :: String -> MST ()
+pushString      = pushMV . VString
+
+pushList        :: [MV] -> MST ()
+pushList        = pushMV . VList
+
+pushListPic     :: [Picture] -> MST ()
+pushListPic     = pushList . map VPic
+
+pushListString  :: [String] -> MST ()
+pushListString  = pushList . map VString
+
+pushPic         :: Picture -> MST ()
+pushPic         = pushMV . VPic
+
+pushRA          :: Int -> MST ()
+pushRA          = pushMV . VCodeAddr
+
+pushUndef       :: MST ()
+pushUndef       = pushMV VUndef
+
+-- --------------------
 
 popVal          :: (MV -> MST a) -> MST a
-popVal check    = do
-                  v <- popMV
-                  check v
+popVal check    = popMV >>= check
 
-popInt, popFloat, popString, popList, popPic,
- popRA          :: MST MV
-
+popInt          :: MST Int
 popInt          = popVal checkInt
+
+popFloat        :: MST Double
 popFloat        = popVal checkFloat
+
+popString       :: MST String
 popString       = popVal checkString
+
+popList         :: MST [MV]
 popList         = popVal checkList
+
+popList1        :: MST [MV]
+popList1        = popList >>= checkNotEmpty
+
+popListPic      :: MST [Picture]
+popListPic      = popList1 >>= mapM checkPic
+
+popPic          :: MST Picture
 popPic          = popVal checkPic
+
+popRA           :: MST Int
 popRA           = popVal checkRA
 
--- -------------------------------------------------------------------
+-- --------------------
 
-isNotUndef, isInt, isFloat, isString, isList, isPic,
- isRA   :: MV -> Bool
+checkVal  :: (a -> String) -> (a -> Bool) -> String -> a -> MST a
+checkVal show' check err v
+  | check v   = return v
+  | otherwise = throw $ showIllegalOperand' show' err v
 
-isNotUndef VUndef       = False
-isNotUndef _            = True
+checkNE0 :: (Eq a, Num a, Show a) => a -> MST a
+checkNE0 = checkVal show (/= 0) "value /= 0"
 
-isInt (VInt _)          = True
-isInt _                 = False
+checkGT0 :: (Ord a, Num a, Show a) => a -> MST a
+checkGT0 = checkVal show (>  0) "value > 0"
 
-isFloat (VFloat _)      = True
-isFloat _               = False
+checkNotEmpty :: [a] -> MST [a]
+checkNotEmpty = checkVal (const "[]") (not . null) "nonempty list"
 
-isString (VString _)    = True
-isString _              = False
+checkListIx :: ([a], Int) -> MST ([a], Int)
+checkListIx (l, ix) = do
+  i1 <- checkVal show (>= 0)  "negative list index" ix
+  i2 <- checkVal show (< len) ("list index < " ++ show len) i1
+  return (l, i2)
+  where
+    len = length l
 
-isList (VList _)        = True
-isList _                = False
+checkType :: (MV -> Maybe a) -> String -> MV -> MST a
+checkType selComp err v
+  = maybe (throw $ showIllegalOperand err v)
+          return
+          $ selComp v
 
-isPic (VPic _)          = True
-isPic _                 = False
+checkNotUndef   :: MV -> MST MV
+checkNotUndef   = checkType selNotUndef  "undefined value found"
 
-isRA (VCodeAddr _)      = True
-isRA _                  = False
+checkInt        :: MV -> MST Int
+checkInt        = checkType selInt       "int"
 
--- -------------------------------------------------------------------
+checkFloat      :: MV -> MST Double
+checkFloat      = checkType selFloat     "float"
+
+checkString     :: MV -> MST String
+checkString     = checkType selString    "string"
+
+checkList       :: MV -> MST [MV]
+checkList       = checkType selList      "list"
+
+checkPic        :: MV -> MST Picture
+checkPic        = checkType selPic       "picture"
+
+checkRA         :: MV -> MST Int
+checkRA         = checkType selRA        "return address"
+
+selNotUndef              :: MV -> Maybe MV
+selNotUndef VUndef       = Nothing
+selNotUndef v            = Just v
+
+selInt                   :: MV -> Maybe Int
+selInt (VInt v)          = Just v
+selInt _                 = Nothing
+
+selFloat                 :: MV -> Maybe Double
+selFloat (VFloat v)      = Just v
+selFloat _               = Nothing
+
+selString                :: MV -> Maybe String
+selString (VString v)    = Just v
+selString _              = Nothing
+
+selList                  :: MV -> Maybe [MV]
+selList (VList v)        = Just v
+selList _                = Nothing
+
+selPic                   :: MV -> Maybe PPL.Picture.Picture
+selPic (VPic v)          = Just v
+selPic _                 = Nothing
+
+selRA                    :: MV -> Maybe Int
+selRA (VCodeAddr v)      = Just v
+selRA _                  = Nothing
+
+-- ----------------------------------------

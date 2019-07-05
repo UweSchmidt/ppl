@@ -168,16 +168,16 @@ exrun	:
 
 ##
 ##wavrun
-##	run the example.ppl program with trace
+##	run the wavelet.ppl program with trace
 
 wavrun	: lena.ppm wavelet.ppl $(PPLC)
 	$(PPLC) $(PPLCOPT) --exec wavelet.ppl lena
 	mv *-wave*.p?m gen
 
-##
-##java
-##	generate java output from test programs
-##	and compile the java sources
+#
+#java
+#	generate java output from test programs
+#	and compile the java sources
 
 java	: $(TESTJAVA)
 	( cd java ; javac ppl/*.java )

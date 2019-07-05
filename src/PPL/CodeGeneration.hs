@@ -16,10 +16,12 @@ initLabel       = updateState "newlabel" (LabCnt 0)
 
 newLabel        :: GS Label
 newLabel
-    = do
-      LabCnt l <- lookupState "newlabel"
-      updateState "newlabel" (LabCnt (l+1))
-      return ("l" ++ show l)
+    = do l <- getL <$> lookupState "newlabel"
+         updateState "newlabel" (LabCnt (l+1))
+         return ("l" ++ show l)
+     where
+       getL (LabCnt c) = c
+       getL _          = error "newLabel: LabCnt expected"
 
 -- -------------------------------------------------------------------
 -- variable allocation
@@ -30,9 +32,10 @@ setAllocator a
 
 getAllocator    :: GS Alloc
 getAllocator
-    = do
-      Allocator a <- lookupState "alloc"
-      return a
+    = getA <$> lookupState "alloc"
+  where
+    getA (Allocator a) = a
+    getA _             = error "getAllocator: Allocator expected"
 
 initAddr        :: GS ()
 initAddr
@@ -56,15 +59,17 @@ setAddrCnt a
 
 getDataSegLen           :: GS Int
 getDataSegLen
-    = do
-      AddrCnt a <- lookupState "maxaddr"
-      return a
+    = getDSL <$> lookupState "maxaddr"
+  where
+    getDSL (AddrCnt ac) = ac
+    getDSL _            = error "getDataSegLen: AddrCnt expected"
 
 getAddrCnt              :: GS Int
 getAddrCnt
-    = do
-      AddrCnt a <- lookupState "newaddr"
-      return a
+    = getAC <$> lookupState "newaddr"
+  where
+    getAC (AddrCnt ac) = ac
+    getAC _            = error "getAddrCnt: AddrCnt expected"
 
 initAddrList    :: GS ()
 initAddrList
@@ -73,9 +78,10 @@ initAddrList
 
 getAddrList     :: GS AddrList
 getAddrList
-    = do
-      AddrList al <- lookupState "addrlist"
-      return al
+    = getAL <$> lookupState "addrlist"
+  where
+    getAL (AddrList al) = al
+    getAL _             = error "getAddrList: AddrList expected"
 
 setAddrList     :: AddrList -> GS ()
 setAddrList al

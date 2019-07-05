@@ -68,4 +68,3 @@ lookupState a
 updateState :: Attr -> Value -> GS ()
 updateState a v
     = GS (\s -> (updateValue a v s, ()))
-

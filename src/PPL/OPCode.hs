@@ -1,321 +1,279 @@
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns -fno-warn-missing-signatures #-}
-
 module PPL.OPCode
-    ( ops
-    , svcs
+    ( exOP
+    , exSVC
     ) where
 
 import PPL.Instructions
 import PPL.MachineArchitecture
 import PPL.MicroCode
 import PPL.Picture
-import PPL.Error
 import PPL.ShowMS
 
 import System.Environment
 
--- -------------------------------------------------------------------
+-- ----------------------------------------
+--
+-- execute compute op
 
--- read the arguments from evaluation stack
--- and check their types
+exOP :: Opcode -> MST ()
 
-getInstrArgs :: Monad m => [m b] -> m [b]
-getInstrArgs    al = do
-             vl <- sequence (reverse al)
-             return (reverse vl)
+-- exec binary int ops
+exOP OPaddi  = exInt2 (+)
+exOP OPsubi  = exInt2 (-)
+exOP OPmuli  = exInt2 (*)
+exOP OPdivi  = exOP2 popInt (popInt >>= checkNE0) pushInt div
+exOP OPmodi  = exOP2 popInt (popInt >>= checkNE0) pushInt mod
+exOP OPmaxi  = exInt2 max
+exOP OPmini  = exInt2 min
+exOP OPeqi   = exInt2 (\ x y -> fromEnum (x == y))
+exOP OPgei   = exInt2 (\ x y -> fromEnum (x >= y))
+exOP OPgti   = exInt2 (\ x y -> fromEnum (x >  y))
 
-getNoArg        :: MST [MV]
-getNoArg        = getInstrArgs []
-getFloat        = getInstrArgs [popFloat]
-getInt          = getInstrArgs [popInt]
-getList         = getInstrArgs [popList]
-getPic          = getInstrArgs [popPic]
-getStr          = getInstrArgs [popString]
-getFloat2       = getInstrArgs [popFloat,       popFloat]
-getInt2         = getInstrArgs [popInt,         popInt]
-getListAny      = getInstrArgs [popList,        popMV]
-getListInt      = getInstrArgs [popList,        popInt]
-getList2        = getInstrArgs [popList,        popList]
-getPicFloat     = getInstrArgs [popPic,         popFloat]
-getPicInt       = getInstrArgs [popPic,         popInt]
-getPicStr       = getInstrArgs [popPic,         popString]
-getPic2         = getInstrArgs [popPic,         popPic]
-getStr2         = getInstrArgs [popString,      popString]
-getFloatInt2    = getInstrArgs [popFloat,       popInt, popInt]
-getPicInt2      = getInstrArgs [popPic,         popInt, popInt]
-getPic2Int2     = getInstrArgs [popPic,         popPic, popInt, popInt]
-getPicInt4      = getInstrArgs [popPic,         popInt, popInt, popInt, popInt]
+-- exec unary int ops
+exOP OPincri = exInt1 (+ 1)
+exOP OPdecri = exInt1 (\ x -> x - 1)
 
--- -------------------------------------------------------------------
-
--- the table of opcode functions consists of
--- 2 functions, the first one for reading and checking
--- the arguments, the second for doing the real operation
-
-ops             :: [(Opcode, (MST [MV], [MV] -> MST MV))]
-
-ops = map ( \ (op, (get, eval)) -> (op, (get, liftCompute eval)))
-      [ (OPaddi,        (getInt2,       evalAddi))
-      , (OPsubi,        (getInt2,       evalSubi))
-      , (OPmuli,        (getInt2,       evalMuli))
-      , (OPdivi,        (getInt2,       evalDivi))
-      , (OPmodi,        (getInt2,       evalModi))
-      , (OPmaxi,        (getInt2,       evalMaxi))
-      , (OPmini,        (getInt2,       evalMini))
-      , (OPeqi,         (getInt2,       evalEqi))
-      , (OPgei,         (getInt2,       evalGei))
-      , (OPgti,         (getInt2,       evalGti))
-
-      , (OPincri,       (getInt,        evalIncri))
-      , (OPdecri,       (getInt,        evalDecri))
-
-      , (OPaddf,        (getFloat2,     evalAddf))
-      , (OPsubf,        (getFloat2,     evalSubf))
-      , (OPmulf,        (getFloat2,     evalMulf))
-      , (OPdivf,        (getFloat2,     evalDivf))
-      , (OPmaxf,        (getFloat2,     evalMaxf))
-      , (OPminf,        (getFloat2,     evalMinf))
-      , (OPeqf,         (getFloat2,     evalEqf))
-      , (OPgef,         (getFloat2,     evalGef))
-      , (OPgtf,         (getFloat2,     evalGtf))
-
-      , (OPi2s,         (getInt,        evalI2s))
-      , (OPf2s,         (getFloat,      evalF2s))
-      , (OPi2f,         (getInt,        evalI2f))
-      , (OPtrunc,       (getFloat,      evalTrunc))
-      , (OPround,       (getFloat,      evalRound))
-
-      , (OPconcs,       (getStr2,       evalConcs))
-
-      , (OPisemptyl,    (getList,       evalIsEmpty))
-      , (OPlengthl,     (getList,       evalLength))
-      , (OPtaill,       (getList,       evalTail))
-      , (OPconcl,       (getList2,      evalConcl))
-      , (OPconsl,       (getListAny,    evalCons))
-      , (OPappendl,     (getListAny,    evalAppend))
-      , (OPindexl,      (getListInt,    evalIndex))
-
-      , (OPwidth,       (getPic,        evalWidth))
-      , (OPheight,      (getPic,        evalHeight))
-      , (OPblack,       (getInt2,       evalBlack))
-      , (OPwhite,       (getInt2,       evalWhite))
-      , (OPgrey,        (getFloatInt2,  evalGrey))
-
-      , (OPgamma,               (getPicFloat,   evalGamma))
-      , (OPinvert,              (getPic,        evalPic1 invertPic))
-      , (OPbitmap,              (getPic,        evalPic1 bitmapPic))
-      , (OPblackAndWhite,       (getPic,        evalPic1 blackAndWhitePic))
-      , (OPreduceColor,         (getPicInt,     evalReduceColor))
-      , (OPflipHorizontal,      (getPic,        evalPic1 flipHMx))
-      , (OPflipVertical,        (getPic,        evalPic1 flipVMx))
-      , (OPflipDiagonal,        (getPic,        evalPic1 flipDMx))
-      , (OProtate,              (getPic,        evalPic1 rotateMx))
-      , (OPshift,               (getPicInt2,    evalPicII shiftMx))
-      , (OPcut,                 (getPicInt4,    evalCut))
-      , (OPpaste,               (getPic2Int2,   evalPaste))
-      , (OPscale,               (getPicInt2,    evalPicII scaleMx))
-      , (OPshrink,              (getPicInt2,    evalPicII shrinkMx))
-      , (OPreplicate,           (getPicInt2,    evalPicII replicateMx))
-      , (OPresize,              (getPicInt2,    evalPicII resizePic))
-      , (OPsideBySide,          (getPic2,       evalPic2 sideBySideMx))
-      , (OPabove,               (getPic2,       evalPic2 aboveMx))
-
-      , (OPpartitionHorizontal, (getPicInt,     evalPartition partHMx))
-      , (OPpartitionVertical,   (getPicInt,     evalPartition partVMx))
-      , (OPsplitHorizontal,     (getPicInt,     evalPartition splitHMx))
-      , (OPsplitVertical,       (getPicInt,     evalPartition splitVMx))
-      , (OPmergeHorizontal,     (getPic2,       evalPic2 mergeHMx))
-      , (OPmergeVertical,       (getPic2,       evalPic2 mergeVMx))
-      , (OPconcatHorizontal,    (getList,       evalPicList concatHMx))
-      , (OPconcatVertical,      (getList,       evalPicList concatVMx))
-
-      , (OPmean,                (getPic2,       evalPic2 meanPic))
-      , (OPdiff,                (getPic2,       evalPic2 diffPic))
-      , (OPinverseMean,         (getPic2,       evalPic2 invMeanPic))
-      , (OPinverseDiff,         (getPic2,       evalPic2 invDiffPic))
-      , (OPmulp,                (getPic2,       evalPic2 mulPic))
-      , (OPmaxp,                (getPic2,       evalPic2 maxPic))
-      , (OPminp,                (getPic2,       evalPic2 minPic))
-
-      , (OPterminate,           (getNoArg,      (\_ -> Error programTerminated)))
-      , (OPabort,               (getStr,        (\ [VString s] -> Error (programAborted ++ ": " ++ s))))
-      ]
-
--- -------------------------------------------------------------------
-
--- the table of SVC calls and their functions
--- 2 functions are needed, the get...Arg for
--- reading the function arguments from the evaluation stack
--- and the eval??? function for doing the read work
--- these functions are different from normal operations,
--- because they may do some IO
-
-svcs    :: [(String, (MST [MV], [MV] -> MST MV))]
-
-svcs = map ( \ (op, (get, eval)) -> (op, (get, liftSvc eval)))
-       [ ("write",      (getStr,        evalWrite putStr))
-       , ("writeln",    (getStr,        evalWrite putStrLn))
-       , ("getArgs",    (getNoArg,      evalGetArgs))
-       , ("load",       (getStr,        evalLoadPic))
-       , ("store",      (getPicStr,     evalStorePic))
-       , ("abort",      (getNoArg,      evalAbort))
-       , ("exit",       (getNoArg,      evalExit))
-       ] ++
-       [ ("dump",       (getNoArg,      evalDumpMS))
-       ]
-
--- -------------------------------------------------------------------
-
-evalWrite put [VString s]
-    = put s >> return (OK VUndef)
-
-evalGetArgs []
-    = do
-      argl <- getArgs
-      return (OK (VList (map VString (drop 2 argl))))
-
-evalAbort []
-    = return (Error programAborted)
-
-evalExit []
-    = return (Error programTerminated)
-
-evalLoadPic [VString s]
-    = do
-      c <- readPictureFile s
-      return (OK (VPic c))
-
-evalStorePic [VPic p, VString s]
-    = do
-      writePictureFile s p
-      return (OK VUndef)
-
-evalDumpMS []
-    = do
-      trc showMS
-      return VUndef
-
--- -------------------------------------------------------------------
-
--- integer arithmetic
-
-evalAddi [VInt i1, VInt i2]     = OK (VInt (i1 + i2))
-evalSubi [VInt i1, VInt i2]     = OK (VInt (i1 - i2))
-evalMuli [VInt i1, VInt i2]     = OK (VInt (i1 * i2))
-
-evalDivi [_      , VInt 0 ]     = Error "integer division by zero"
-evalDivi [VInt i1, VInt i2]     = OK (VInt (i1 `div` i2))
-
-evalModi [_      , VInt 0 ]     = Error "remainder by zero"
-evalModi [VInt i1, VInt i2]     = OK (VInt (i1 `mod` i2))
-
-evalMaxi [VInt i1, VInt i2]     = OK (VInt (i1 `max` i2))
-evalMini [VInt i1, VInt i2]     = OK (VInt (i1 `min` i2))
-
-evalEqi  [VInt i1, VInt i2]     = OK (VInt (fromEnum (i1 == i2)))
-evalGei  [VInt i1, VInt i2]     = OK (VInt (fromEnum (i1 >= i2)))
-evalGti  [VInt i1, VInt i2]     = OK (VInt (fromEnum (i1 >  i2)))
-
-evalIncri [VInt i1]             = OK (VInt (i1 + 1))
-evalDecri [VInt i1]             = OK (VInt (i1 - 1))
-
--- floating arithmetic
-
-evalAddf [VFloat f1, VFloat f2] = OK (VFloat (f1 + f2))
-evalSubf [VFloat f1, VFloat f2] = OK (VFloat (f1 - f2))
-evalMulf [VFloat f1, VFloat f2] = OK (VFloat (f1 * f2))
-
-evalDivf [_       , VFloat 0.0] = Error "floating division by zero"
-evalDivf [VFloat f1, VFloat f2] = OK (VFloat (f1 / f2))
-
-evalMaxf [VFloat f1, VFloat f2] = OK (VFloat (f1 `max` f2))
-evalMinf [VFloat f1, VFloat f2] = OK (VFloat (f1 `min` f2))
-
-evalEqf  [VFloat f1, VFloat f2] = OK (VInt (fromEnum (f1 == f2)))
-evalGef  [VFloat f1, VFloat f2] = OK (VInt (fromEnum (f1 >= f2)))
-evalGtf  [VFloat f1, VFloat f2] = OK (VInt (fromEnum (f1 >  f2)))
+-- exec binary float ops
+exOP OPaddf  = exFloat2 (+)
+exOP OPsubf  = exFloat2 (-)
+exOP OPmulf  = exFloat2 (*)
+exOP OPdivf  = exFloat2 (/)
+exOP OPmaxf  = exFloat2 max
+exOP OPminf  = exFloat2 min
+exOP OPeqf   = exFloat2Int (\ x y -> fromEnum (x == y))
+exOP OPgef   = exFloat2Int (\ x y -> fromEnum (x >= y))
+exOP OPgtf   = exFloat2Int (\ x y -> fromEnum (x >  y))
 
 -- conversions
+exOP OPi2s   = exOP1 popInt   pushString show
+exOP OPf2s   = exOP1 popFloat pushString show
+exOP OPi2f   = exOP1 popInt   pushFloat  (fromInteger . toInteger)
+exOP OPtrunc = exOP1 popFloat pushInt    truncate
+exOP OPround = exOP1 popFloat pushInt    round
 
-evalI2s  [VInt i]               = OK (VString (show i))
-evalF2s  [VFloat f]             = OK (VString (show f))
-evalI2f  [VInt i]               = OK (VFloat ((fromInteger . toInteger) i))
+-- string ops
+exOP OPconcs = exOP2 popString popString pushString (++)
 
-evalTrunc [VFloat f]            = OK (VInt (truncate f))
-evalRound [VFloat f]            = OK (VInt (round f))
+-- list ops
+exOP OPisemptyl = exOP1  popList pushInt  (fromEnum . null)
+exOP OPlengthl  = exOP1  popList pushInt  length
+exOP OPtaill    = exOP1  popList1 pushList tail
+exOP OPconcl    = exOP2  popList popList pushList (++)
+exOP OPconsl    = exOP2  popList popMV    pushList (flip (:))
+exOP OPappendl  = exOP2  popList popMV    pushList
+                         (\ xs x -> xs ++ [x])
 
--- string operations
+-- here the argument check is more complicated than
+-- with the other checks,
+-- the relation between the 2 arguments must be checked
+exOP OPindexl   = exOP1  ( ( do i <- popInt
+                                l <- popList
+                                return (l, i)
+                           )
+                           >>= checkListIx
+                         ) pushMV (uncurry (!!))
 
-evalConcs [VString s1, VString s2] = OK (VString (s1 ++ s2))
+exOP OPwidth    = exOP1  popPic pushInt widthMx
+exOP OPheight   = exOP1  popPic pushInt heightMx
+exOP OPblack    = exOP2  popInt popInt pushPic (greyPic 0.0)
+exOP OPwhite    = exOP2  popInt popInt pushPic (greyPic 1.0)
+exOP OPgrey     = exOP3  popFloat popInt popInt pushPic greyPic
+exOP OPgamma    = exOP2  popPic popFloat pushPic (flip gammaPic)
+exOP OPinvert   = exPic1 invertPic
+exOP OPbitmap   = exPic1 bitmapPic
+exOP OPblackAndWhite
+                = exPic1 blackAndWhitePic
+exOP OPreduceColor
+                = exOP2  popPic popInt pushPic
+                         (flip reduceColorPic)
+exOP OPflipHorizontal
+                = exPic1 flipHMx
+exOP OPflipVertical
+                = exPic1 flipVMx
+exOP OPflipDiagonal
+                = exPic1 flipDMx
+exOP OProtate   = exPic1 rotateMx
+exOP OPshift    = exPicInt2 shiftMx
+exOP OPcut      = exOP5 popPic popInt popInt popInt popInt
+                        pushPic
+                        (\ p x y w h -> cutMx x y w h p)
+exOP OPpaste    = exOP4 popPic popPic popInt popInt pushPic
+                        (\ p1 p2 x y -> pasteMx x y p2 p1)
+exOP OPscale    = exPicInt2 scaleMx
+exOP OPshrink   = exPicInt2 shrinkMx
+exOP OPreplicate= exPicInt2 replicateMx
+exOP OPresize   = exPicInt2 resizePic
+exOP OPsideBySide
+                = exPic2 sideBySideMx
+exOP OPabove    = exPic2 aboveMx
+exOP OPpartitionHorizontal
+                = exPicPart partHMx
+exOP OPpartitionVertical
+                = exPicPart partVMx
+exOP OPsplitHorizontal
+                = exPicPart splitHMx
+exOP OPsplitVertical
+                = exPicPart splitVMx
+exOP OPmergeHorizontal
+                = exPic2 mergeHMx
+exOP OPmergeVertical
+                = exPic2 mergeVMx
+exOP OPconcatHorizontal
+                = exOP1 popListPic pushPic concatHMx
+exOP OPconcatVertical
+                = exOP1 popListPic pushPic concatVMx
+exOP OPmean     = exPic2 meanPic
+exOP OPdiff     = exPic2 diffPic
+exOP OPinverseMean
+                = exPic2 invMeanPic
+exOP OPinverseDiff
+                = exPic2 invDiffPic
+exOP OPmulp     = exPic2 mulPic
+exOP OPmaxp     = exPic2 maxPic
+exOP OPminp     = exPic2 minPic
 
--- list operations
+exOP OPterminate
+                = throw programTerminated
+exOP OPabort    = do s <- popString
+                     throw $ programAborted ++ ": " ++ s
 
-evalIsEmpty [VList l]           = OK (VInt (fromEnum (null l)))
-evalLength  [VList l]           = OK (VInt (length l))
+{- redundant, pattern match complete
+exOP op         = throw $ "unimplemented op: " ++ showOpCode op
+-}
 
-evalTail    [VList []]          = Error "tail of empty list"
-evalTail    [VList (_:l)]       = OK (VList l)
+-- --------------------
+-- unary and binary ops
 
-evalConcl   [VList l1, VList l2]
-                                = OK (VList (l1 ++ l2))
-evalCons    [VList l1, x2]      = OK (VList (x2:l1))
-evalAppend  [VList l1, x2]      = OK (VList (l1 ++ [x2]))
-evalIndex   [VList l1, VInt ix]
-    | ix < 0
-      = Error ( "negative list index: "
-                ++ show ix
-              )
-    | ix >= length l1
-        = Error ( "index out of bounds: ix = "
-                  ++ show ix
-                  ++ ", but list length is "
-                  ++ show (length l1)
-                )
-    | otherwise
-        = OK (l1 !! ix)
+exOP1 :: MST a
+      -> (r -> MST ())
+      -> (a -> r) -> MST ()
+exOP1 pop push op = (op <$> pop) >>= push
 
--- picture operations
+-- --------------------
 
-evalWidth  [VPic p]     = OK (VInt (widthMx  p))
-evalHeight [VPic p]     = OK (VInt (heightMx p))
+exOP2 :: MST a -> MST b
+      -> (r -> MST ())
+      -> (a -> b -> r) -> MST ()
+exOP2 pop1 pop2 push op
+  = (flip op <$> pop2 <*> pop1) >>= push
 
-evalGrey [VFloat l, VInt w, VInt h]
-    = OK (VPic (greyPic l w h))
+-- --------------------
 
-evalWhite al            = evalGrey (VFloat 1.0 : al)
-evalBlack al            = evalGrey (VFloat 0.0 : al)
+exOP3 :: MST a -> MST b -> MST c
+      -> (r -> MST ())
+      -> (a -> b -> c -> r) -> MST ()
+exOP3 pop1 pop2 pop3 push op
+  = (op' <$> pop3 <*> pop2 <*> pop1) >>= push
+    where
+      op' z y x = op x y z
 
-evalGamma [VPic p, VFloat f]
-    = OK (VPic (gammaPic f p))
+-- --------------------
 
-evalPic1 f [VPic p]     = OK (VPic (f p))
+exOP4 :: MST a -> MST b -> MST c -> MST d
+      -> (r -> MST ())
+      -> (a -> b -> c -> d -> r) -> MST ()
+exOP4 pop1 pop2 pop3 pop4 push op
+  = (op' <$> pop4 <*> pop3 <*> pop2 <*> pop1) >>= push
+    where
+      op' z y x w = op w x y z
 
-evalPicII f [VPic p, VInt w, VInt h]
-    = OK (VPic (f w h p))
+-- --------------------
 
-evalCut [VPic p, VInt x, VInt y, VInt w, VInt h]
-    = OK (VPic (cutMx x y w h p))
+exOP5 :: MST a -> MST b -> MST c -> MST d -> MST e
+      -> (r -> MST ())
+      -> (a -> b -> c -> d -> e -> r) -> MST ()
+exOP5 pop1 pop2 pop3 pop4 pop5 push op
+  = (op' <$> pop5 <*> pop4 <*> pop3 <*> pop2 <*> pop1) >>= push
+    where
+      op' z y x w v = op v w x y z
 
-evalPaste [VPic p1, VPic p2, VInt x, VInt y]
-    = OK (VPic (pasteMx x y p2 p1))
+-- --------------------
+-- short cuts
+--
+-- int ops
 
-evalPic2 f [VPic p1, VPic p2]
-    = OK (VPic (f p1 p2))
+exInt1 :: (Int -> Int) -> MST ()
+exInt1 = exOP1 popInt pushInt
 
-evalReduceColor [VPic p, VInt i]
-    = OK (VPic (reduceColorPic i p))
+exInt2 :: (Int -> Int -> Int) -> MST ()
+exInt2 = exOP2 popInt popInt pushInt
 
-evalPartition f [VPic p1, VInt n]
-    | n <= 0
-      = Error ( "# of partitions must be > 0: "
-                ++ show n
-              )
-    | otherwise
-      = OK (VList (map (\ p -> VPic p) res))
-        where
-        res = f n p1
+-- float ops
 
-evalPicList f [VList ps]
-    = OK (VPic (f (map ( \ (VPic p) -> p ) ps)))
+exFloat2' :: (c -> MST ())
+          ->(Double -> Double -> c) -> MST ()
+exFloat2' push = exOP2 popFloat popFloat push
 
--- -------------------------------------------------------------------
+exFloat2 :: (Double -> Double -> Double) -> MST ()
+exFloat2 = exFloat2' pushFloat
+
+exFloat2Int :: (Double -> Double -> Int) -> MST ()
+exFloat2Int = exFloat2' pushInt
+
+-- picture ops
+
+exPic1 :: (Picture -> Picture) -> MST ()
+exPic1 = exOP1 popPic pushPic
+
+exPic2' :: (c -> MST ())
+          ->(Picture -> Picture -> c) -> MST ()
+exPic2' push = exOP2 popPic popPic push
+
+exPic2 :: (Picture -> Picture -> Picture) -> MST ()
+exPic2 = exPic2' pushPic
+
+exPicInt2 :: (Int -> Int -> Picture -> Picture) -> MST ()
+exPicInt2 = exPicInt2' . flipPII
+  where
+    exPicInt2' :: (Picture -> Int -> Int -> Picture) -> MST ()
+    exPicInt2' = exOP3  popPic popInt popInt pushPic
+
+    flipPII :: (Int -> Int -> Picture -> Picture)
+            -> (Picture -> Int -> Int -> Picture)
+    flipPII f p w h = f w h p
+
+exPicPart :: (Int -> Picture -> [Picture]) -> MST ()
+exPicPart f = exOP2 popPic (popInt >>= checkGT0) pushListPic
+                    (flip f)
+
+-- ----------------------------------------
+
+exSVC :: Subroutine -> MST ()
+exSVC "write"
+  = do s <- popString
+       io $ putStr s
+       pushUndef
+
+exSVC "writeln"
+  = do s <- popString
+       io $ putStrLn s
+       pushUndef
+
+exSVC "getArgs"
+  = do argl <- io $ getArgs
+       pushListString $ drop 2 argl
+
+exSVC "abort"
+  = throw programAborted
+
+exSVC "exit"
+  = throw programTerminated
+
+exSVC "load"
+  = do fn <- popString
+       p  <- io $ readPictureFile fn
+       pushPic p
+
+exSVC "store"
+  = do fn <- popString
+       p  <- popPic
+       io $ writePictureFile fn p
+       pushUndef
+
+exSVC "dump"
+  = trc showMS >> pushUndef
+
+exSVC sub
+  = throw $ "unimplemented system call: " ++ sub
+
+-- ----------------------------------------

@@ -1,12 +1,11 @@
 module PPL.ControlUnit
-    (execProg) where
+    (execProg)
+where
 
 import PPL.Instructions
 import PPL.MachineArchitecture
 import PPL.MicroCode
 import PPL.OPCode
-
-import PPL.ShowCode
 import PPL.ShowMS
 
 -- -------------------------------------------------------------------
@@ -27,7 +26,7 @@ startProg
       continueProg
 
 continueProg    :: MST ()
-continueProg 
+continueProg
     = do
       trc showCurInstr
       succeed execInstr
@@ -60,33 +59,20 @@ termProg
 
 intpInstr       :: Instr -> MST ()
 
-intpInstr (LoadI i)     = pushMV (VInt i)
-intpInstr (LoadF f)     = pushMV (VFloat f)
-intpInstr (LoadS s)     = pushMV (VString s)
-intpInstr  LoadU        = pushMV  VUndef
-intpInstr  LoadEL       = pushMV (VList [])
+intpInstr (LoadI i)     = pushInt    i
+intpInstr (LoadF f)     = pushFloat  f
+intpInstr (LoadS s)     = pushString s
+intpInstr  LoadU        = pushUndef
+intpInstr  LoadEL       = pushList   []
 
 intpInstr (Load addr)
-    = do
-      v0 <- readMV addr
-      v1 <- checkNotUndef v0
-      pushMV v1
+  = readMV addr >>= checkNotUndef >>= pushMV
 
 intpInstr (Compute op)
-    = case lookup op ops
-      of
-      Just (getArgs, eval)
-          -> do
-             vl  <- getArgs
-             res <- eval vl
-             pushMV res
-      Nothing
-          -> throw ("unimplemented op: " ++ showOpCode op)
+    = exOP op
 
 intpInstr (Store addr)
-    = do
-      v <- popMV
-      writeMV addr v
+    = popMV >>= writeMV addr
 
 intpInstr  Pop
     = do
@@ -102,13 +88,11 @@ intpInstr  Dup
 intpInstr (PushJ (Disp d))
     = do
       pc' <- getProgCount
-      pushMV (VCodeAddr pc')
+      pushRA pc'
       setProgCount (pc' - 1 + d)
 
 intpInstr  PopJ
-    = do
-      (VCodeAddr pc') <- popRA
-      setProgCount pc'
+    = popRA >>= setProgCount
 
 intpInstr (Jump (Disp d))
     = do
@@ -117,7 +101,7 @@ intpInstr (Jump (Disp d))
 
 intpInstr (Branch cond (Disp d))
     = do
-      (VInt b)  <- popInt
+      b <- popInt
       if (b /= 0) == cond
         then (do
               pc' <- getProgCount
@@ -132,15 +116,7 @@ intpInstr Exit
     = freeSF
 
 intpInstr (SysCall call)
-    = case lookup call svcs
-      of
-      Just (getArgs, eval)
-          -> do
-             vl  <- getArgs
-             res <- eval vl
-             pushMV res
-      Nothing
-          -> throw ("unimplemented system call: " ++ call)
+    = exSVC call
 
 intpInstr instr'
     = throw ("unimplemented: " ++ show instr')
