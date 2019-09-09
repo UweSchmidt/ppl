@@ -1,5 +1,5 @@
 # LTS with ghc-8.6.4
-resolver: lts-13.10
+resolver: lts-13.19
 
 # Local packages, usually specified by relative directory name
 packages:
