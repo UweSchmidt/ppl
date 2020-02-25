@@ -5,7 +5,6 @@
 
 module PPL.MicroInstructions where
 
-import Control.Applicative (Applicative(..))
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Lens

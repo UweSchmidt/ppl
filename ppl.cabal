@@ -1,10 +1,10 @@
 name:                ppl
-version:             0.2.0.0
+version:             0.2.0.1
 -- please run: make version after incrementing the version number
 synopsis:            Compiler construction example for a DSL to process pictures
 author:              Uwe Schmidt
 maintainer:          si@fh-wedel.de
-copyright:           2006 - 2019 Uwe Schmidt
+copyright:           2006 - 2020 Uwe Schmidt
 category:            Compiler, Graphics
 build-type:          Simple
 extra-source-files:
