@@ -2,11 +2,14 @@
 
 module PPL.CodeGeneration where
 
-import PPL.AbstractSyntax
-import PPL.Instructions
-import PPL.GlobalState
+import           Data.Maybe
 
-import Data.Maybe
+import           PPL.AbstractSyntax (AttrTree, Expr (..), Type (..))
+import           PPL.GlobalState    (AddrList, Alloc, GS (..), State,
+                                     Value (..), initialState, lookupState,
+                                     updateState)
+import           PPL.Instructions   (Address (..), Code, Dest (Symb),
+                                     Executable, Instr (..), Label, Opcode (..))
 
 -- -------------------------------------------------------------------
 -- label generation
@@ -89,9 +92,7 @@ setAddrList al
 
 getAddr         :: String -> GS Address
 getAddr var
-    = do
-      al <- getAddrList
-      return (maybe (AbsA 0) id (lookup var al))
+  = fromMaybe (AbsA 0) . lookup var <$>  getAddrList
 
 allocVar        :: String -> GS ()
 allocVar id'
@@ -135,16 +136,16 @@ compProg'' (Opr "sequence" (body : decll), _)
                                 -- allocate global variables
       initAddr
       setAllocator AbsA
-      sequence_ (map compGlobDecl (filter isGlobDecl decll))
+      mapM_ compGlobDecl (filter isGlobDecl decll)
 
                                 -- code for global variable init
-      initCode  <- sequence (map compExpr (filter isGlobInit decll))
+      initCode  <- mapM compExpr (filter isGlobInit decll)
                                 -- code for main program
       bodyCode  <- compExpr body
       len       <- getDataSegLen
 
                                 -- code for functions
-      fctCode   <- sequence (map compExpr (filter isGlobFct  decll))
+      fctCode   <- mapM compExpr (filter isGlobFct  decll)
 
                                 -- restore global data segement length
       initAddr
@@ -194,7 +195,7 @@ compExpr (Opr "fctdecl" ((Ident id', _) : body : fpl), rt)
       retAddr   <- allocCell
                                 -- allocate parameter and gen code
                                 -- to initialize them
-      paramCode <- sequence (map compStoreParam (reverse fpl))
+      paramCode <- mapM compStoreParam (reverse fpl)
 
                                 -- compile function body
       bodyCode  <- compExpr body
@@ -217,10 +218,7 @@ compExpr (Opr "fctdecl" ((Ident id', _) : body : fpl), rt)
                ++
                bodyCode
                ++
-               ( if rt == VoidType
-                 then [ LoadU ]
-                 else []
-               )
+               [ LoadU | rt == VoidType]
                ++
                                 -- mark end of body
                [ Label ("e_" ++ id')
@@ -250,7 +248,7 @@ compExpr (Opr "decl" [(Ident id', _t)], _)
 
 compExpr (Opr "sequence" sl, _)
     = do
-      sl1 <- sequence (map compExpr sl)
+      sl1 <- mapM compExpr sl
       return (concat sl1)
 
 compExpr (Opr "while" [cond, body], _)
@@ -289,7 +287,7 @@ compExpr (Opr "if" [cond, thenp, elsep], _)
       codeCond  <- compBranch l1 False cond
       codeThenp <- compExpr thenp
       codeElsep <- compExpr elsep
-      if length codeElsep == 0
+      if null codeElsep
          then
          return ( codeCond
                   ++ codeThenp
@@ -309,8 +307,8 @@ compExpr (Opr ":=" asl, _)
       let l     = length asl `div` 2
       let vl    = take l asl
       let el    = drop l asl
-      codeRHS   <- sequence (map compExpr el)
-      codeLHS   <- sequence (map compStore (reverse vl))
+      codeRHS   <- mapM compExpr el
+      codeLHS   <- mapM compStore (reverse vl)
       return (concat codeRHS ++ concat codeLHS)
 
 compExpr (Opr "do" [e], _)
@@ -369,7 +367,7 @@ compExpr (Opr "ident" [e], _)
                 -- unary - partial evaluation
 
 compExpr (Opr "negi" [(IntVal i, _)], t)
-    = compExpr (IntVal (0 - i), t)
+    = compExpr (IntVal (negate i), t)
 
 compExpr (Opr "negf" [(FloatVal f, _)], t)
     = compExpr (FloatVal (0.0 - f), t)
@@ -445,7 +443,7 @@ compExpr (Ident id', _)
 compExpr (Opr op al, _t)
     | op `elem` svcFcts
     = do
-      codeArgl <- sequence (map compExpr al)
+      codeArgl <- mapM compExpr al
       return ( concat codeArgl
                ++
                [SysCall op]
@@ -453,7 +451,7 @@ compExpr (Opr op al, _t)
 
 compExpr (Opr "definedfct" ((StringVal fn, _):al), _t)
     = do
-      codeArgl <- sequence (map compExpr al)
+      codeArgl <- mapM compExpr al
       return ( concat codeArgl
                ++
                [PushJ (Symb ("_" ++ fn))]
@@ -461,7 +459,7 @@ compExpr (Opr "definedfct" ((StringVal fn, _):al), _t)
 
 compExpr (Opr op al, _t)
     = do
-      codeArgl <- sequence (map compExpr al)
+      codeArgl <- mapM compExpr al
       return ( concat codeArgl
                ++
                [ Compute (fromJust (lookup op opr2Opcode)) ]
@@ -523,7 +521,7 @@ symOps
 
 isOp            :: [(String, String)] -> String -> Bool
 isOp ops op
-    = op `elem` (map fst ops)
+    = op `elem` map fst ops
 
 getOp           :: [(String, String)] -> String -> String
 getOp table op

@@ -1,41 +1,40 @@
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-
 module PPL.ShowCCode
     (showCCode
     ) where
 
-import PPL.Instructions
-import PPL.ShowCode
+import           PPL.Instructions (Address (..), Code, Dest (..), Executable,
+                                   Instr (..))
+import           PPL.ShowCode     (showOpCode)
+
 
 showCCode       :: Executable -> String
 showCCode (is, ds)
-    = concat (map (++ "\n")
-              [ "#include \"vm.h\""
-              , ""
-              , "static Int i_zero  = 0;"
-              , "static Int i_one   = 1;"
-              , "static Int i_two   = 2;"
-              , "static Int i_three = 3;"
-              , "static Int i_four  = 4;"
-              , "static Int i_five  = 5;"
-              , "static Int i_six   = 6;"
-              , "static Int i_seven = 7;"
-              , "static Real f_zero = 0.0;"
-              , "static Real f_one  = 1.0;"
-              , ""
-              , cConst
-              , "static Instr instructions[] ="
-              , "\t{ " ++ cInstr
-              , "\t};"
-              , ""
-              , "int main(int argc, char * argv[]) {"
-              , "    return pplvm(argc, argv, instructions, "
-                ++ "sizeof(instructions) / sizeof(*instructions), "
-                ++ show ds
-                ++ ");"
-              , "}"
-              ]
-             )
+    = unlines
+      [ "#include \"vm.h\""
+      , ""
+      , "static Int i_zero  = 0;"
+      , "static Int i_one   = 1;"
+      , "static Int i_two   = 2;"
+      , "static Int i_three = 3;"
+      , "static Int i_four  = 4;"
+      , "static Int i_five  = 5;"
+      , "static Int i_six   = 6;"
+      , "static Int i_seven = 7;"
+      , "static Real f_zero = 0.0;"
+      , "static Real f_one  = 1.0;"
+      , ""
+      , cConst
+      , "static Instr instructions[] ="
+      , "\t{ " ++ cInstr
+      , "\t};"
+      , ""
+      , "int main(int argc, char * argv[]) {"
+      , "    return pplvm(argc, argv, instructions, "
+        ++ "sizeof(instructions) / sizeof(*instructions), "
+        ++ show ds
+        ++ ");"
+      , "}"
+      ]
       where
       (cInstr, cConst) = showCCode1 is
 
@@ -111,15 +110,19 @@ showCInstr (IllegalInstr s) n
 showCInstr (Label l) _
     = showOpCode1 "illegalInstr" (showLabelArg l)
 
+showOpCode1 :: [Char] -> ([Char], b) -> ([Char], b)
 showOpCode1 opcode (id', const')
     = ( showOpCode' opcode id', const')
 
+showOpCode0 :: [Char] -> ([Char], [Char])
 showOpCode0 opcode
     = ( showOpCode' opcode "0", "")
 
+showOpCode' :: [Char] -> [Char] -> [Char]
 showOpCode' opcode arg
     = "{ " ++ "op_" ++ opcode ++ "\t, " ++ arg ++ " }"
 
+showIntArg :: (Eq a1, Num a1, Show a2, Show a1) => a1 -> a2 -> ([Char], [Char])
 showIntArg 0 _          = ("&i_zero",   "")
 showIntArg 1 _          = ("&i_one",    "")
 showIntArg 2 _          = ("&i_two",    "")
@@ -130,13 +133,17 @@ showIntArg 6 _          = ("&i_six",    "")
 showIntArg 7 _          = ("&i_seven",  "")
 showIntArg i n          = ("&i_" ++ show n, "static Int i_"   ++ show n ++   " = " ++ show i ++ ";\n")
 
+showFloatArg :: (Eq a1, Fractional a1, Show a2, Show a1) => a1 -> a2 -> ([Char], [Char])
 showFloatArg 0.0 _      = ("&f_zero", "")
 showFloatArg 1.0 _      = ("&f_one",  "")
 showFloatArg f n        = ("&f_" ++ show n, "static Real f_" ++ show n ++   " = " ++ show f ++ ";\n")
 
+showStrArg :: (Show a1, Show a2) => a2 -> a1 -> ([Char], [Char])
 showStrArg s n          = ( "s_" ++ show n, "static char s_"  ++ show n ++ "[] = " ++ show s ++ ";\n")
 
+showDestArg :: Show a2 => Dest -> a2 -> ([Char], [Char])
 showDestArg (Symb l) _n = ( "0", "#error \"label not resolved: " ++ l ++ "\"\n")
 showDestArg (Disp d) n  = showIntArg d n
 
+showLabelArg :: [Char] -> ([Char], [Char])
 showLabelArg l          = ( "0", "#error \"label not resolved: " ++ l ++ "\"\n")

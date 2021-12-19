@@ -3,4 +3,6 @@ dist/
 ppl.tar.gz
 .stack-work/
 stack.yaml.lock
+cabal.project.local
+dist-newstyle/
 *~

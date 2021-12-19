@@ -18,7 +18,7 @@ loadExecutable (is, ds)
       where
       instr'    = listArray (0, length is - 1) is
       pc'       = 0
-      mem'      = (replicate ds VUndef)
+      mem'      = replicate ds VUndef
       stack'    = []
       frames'   = []
       status'   = Ok

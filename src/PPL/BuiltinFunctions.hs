@@ -1,7 +1,7 @@
 module PPL.BuiltinFunctions
     ( buildinFcts ) where
 
-import PPL.AbstractSyntax
+import           PPL.AbstractSyntax (Type (FctType, FloatType, IntType, ListType, PictureType, StringType, VoidType))
 
 buildinFcts     :: [(String, Type)]
 buildinFcts
@@ -77,4 +77,3 @@ buildinFcts
       picPicInt2        = FctType PictureType   [PictureType,   IntType,IntType]
       picPic2Int2       = FctType PictureType   [PictureType,   PictureType,    IntType,IntType]
       picPicInt4        = FctType PictureType   [PictureType,   IntType,IntType,IntType,IntType]
-

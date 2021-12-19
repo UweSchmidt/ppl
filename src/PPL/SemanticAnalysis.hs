@@ -1,8 +1,20 @@
-
-module PPL.SemanticAnalysis where
+module PPL.SemanticAnalysis
+  (checkProg)
+where
 
 import PPL.AbstractSyntax
-import PPL.BuiltinFunctions
+    ( AttrTree,
+      GlobDecl,
+      FctBody,
+      ResType,
+      ParamDecl,
+      Type(..),
+      Expr(..),
+      Stmt(..),
+      Program(..) )
+
+import PPL.BuiltinFunctions ( buildinFcts )
+
 
 checkProg       :: Program -> AttrTree
 checkProg       = checkProg' globalEnv
@@ -113,8 +125,8 @@ checkStmt _env _stmt
 -- tail contains global variable descriptions
 
 newEnv          :: Env -> [Stmt] -> Env
-newEnv env dl
-    = insDecl ([]:env) dl
+newEnv env
+    = insDecl ([] : env)
 
 insDecl         :: Env -> [Stmt] -> Env
 insDecl env []
@@ -140,12 +152,12 @@ insId env id' descr
         = newenv
     where
     (locenv:globenv)    = env
-    alreadyDefined id'' = not . null . (lookupId id'') $ [locenv]
+    alreadyDefined id'' = not . null . lookupId id'' $ [locenv]
     newlocenv           = (id', descr) : locenv
     newenv              = newlocenv : globenv
 
 varDescr        :: Type -> Descr
-varDescr t      = VarDescr t
+varDescr        = VarDescr
 
 fctDescr        :: [ParamDecl] -> ResType -> FctBody -> Descr
 fctDescr pl rt body
@@ -226,7 +238,7 @@ convertExpr' rt e@(_, t)
 
 typeExpr        :: Env -> Expr -> AttrTree
 
-typeExpr _ e@(UndefVal)
+typeExpr _ e@UndefVal
     = (e, AnyType)
 
 typeExpr _ e@(IntVal _)
@@ -241,7 +253,7 @@ typeExpr _ e@(FloatVal _)
 typeExpr _ e@(StringVal _)
     = (e, StringType)
 
-typeExpr _ e@(EmptyList)
+typeExpr _ e@EmptyList
     = (e, ListType AnyType)
 
 typeExpr env e@(Ident id')
@@ -251,7 +263,7 @@ typeExpr env e@(Ident id')
 
 typeExpr env (Call fn args)
     | isDeclared fn env
-      = (Opr "definedfct" (fne : (check rt'')), rt)
+      = (Opr "definedfct" (fne : check rt''), rt)
         where
         (FctDescr (FctType rt atypes) _fctBody)
             = getFctDescr fn env
@@ -266,7 +278,7 @@ typeExpr env (Call fn args)
                      ++ fn)
         check _
             = args''
-    
+
 
 typeExpr env (Call fn args)
     = (Opr fn'' args'', resType)
@@ -311,7 +323,7 @@ buildEnv env sl
       undefVar _env' _e
           = error "compiler error: in undefVar"
       in
-      (env1, (map (checkStmt env1) sl), undefl)
+      (env1, map (checkStmt env1) sl, undefl)
 
 -- -------------------------------------------------------------------
 
@@ -350,7 +362,7 @@ opTypes rt ts args
         = noTypeMatch
     where
     args' = zipWith convertExpr ts args
-    match = and . map ( \(_,t) -> t /= UnknownType) $ args'
+    match = all ( \(_,t) -> t /= UnknownType) args'
 
 naryFct         :: Int -> Type -> [AttrTree] -> ([AttrTree], Type)
 naryFct n t     = opTypes t (replicate n t)
@@ -358,18 +370,18 @@ naryFct n t     = opTypes t (replicate n t)
 naryPred        :: Int -> Type -> [AttrTree] -> ([AttrTree], Type)
 naryPred n t    = opTypes BoolType (replicate n t)
 
-nullaryFct      :: Type -> [AttrTree] -> ([AttrTree], Type)
+-- nullaryFct      :: Type -> [AttrTree] -> ([AttrTree], Type)
 unaryFct        :: Type -> [AttrTree] -> ([AttrTree], Type)
 binaryFct       :: Type -> [AttrTree] -> ([AttrTree], Type)
 
-nullaryFct      = naryFct 0
+-- nullaryFct      = naryFct 0
 unaryFct        = naryFct 1
 binaryFct       = naryFct 2
 
-unaryPred       :: Type -> [AttrTree] -> ([AttrTree], Type)
+-- unaryPred       :: Type -> [AttrTree] -> ([AttrTree], Type)
 binaryPred      :: Type -> [AttrTree] -> ([AttrTree], Type)
 
-unaryPred       = naryPred 1
+-- unaryPred       = naryPred 1
 binaryPred      = naryPred 2
 
 concTypes       :: [AttrTree] -> ([AttrTree], Type)

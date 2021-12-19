@@ -81,7 +81,14 @@ formatPGMbin    = showPNMbin . pictureToPGM
 
 -- ------------------------------
 
-import ImgFct.Image
+import           ImgFct.Image (Geo (Geo), Image (Image), PixMap, above, aboves,
+                               addMask, bitmap, bitmap1, cut, flipD, flipH,
+                               flipV, gamma, invert, melt, mergeX, mergeY,
+                               mkGeo, mkGrey, on2, overlay, partX, partY,
+                               readImageFile, reduce, resizeX, resizeY, rot180,
+                               scale, shift, shiftRot, shrink, sideBySide,
+                               sideBySides, splitX, splitY, tile, uniChannel,
+                               writeImageFile)
 
 type Picture    = PixMap
 
@@ -203,5 +210,3 @@ widthMx (Image (Geo w _h) _i)
 
 writePictureFile        :: String -> Picture -> IO ()
 writePictureFile        = writeImageFile
-
-

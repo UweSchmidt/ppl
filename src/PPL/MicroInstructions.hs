@@ -1,20 +1,15 @@
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module PPL.MicroInstructions where
 
-import Control.Monad.Except
-import Control.Monad.State
-import Control.Lens
+import           Control.Exception    (IOException, try)
+import           Control.Lens         (Lens', _head, to, use, uses, (+=), (.=),
+                                       (^?))
+import           Control.Monad.Except (ExceptT (..), MonadError (throwError),
+                                       MonadIO (..), MonadPlus (mzero),
+                                       runExceptT)
+import           Control.Monad.State  (MonadState, StateT (..))
 
-import qualified Data.Array.IArray as IA
-import qualified Data.IntMap       as IM
-
-import Control.Exception        ( IOException
-                                , try
-                                )
+import qualified Data.Array.IArray    as IA
+import qualified Data.IntMap          as IM
 
 -- ----------------------------------------
 
@@ -30,6 +25,7 @@ data MStatus      = Ok
 
 newtype MProg     = MProg {unMProg :: IA.Array Int Instr}
 newtype MSeg      = MSeg  {unMSeg  :: IM.IntMap MValue}
+
 type EvalStack    = [MValue]
 type RuntimeStack = [MSeg]
 
@@ -52,8 +48,7 @@ newtype MicroCode a
            )
 
 runMicroCode :: MicroCode a -> MState -> IO (Either () a, MState)
-runMicroCode m st
-  = (runStateT . runExceptT . unRT $ m) st
+runMicroCode = runStateT . runExceptT . unRT
 
 -- ----------------------------------------
 --
@@ -62,7 +57,7 @@ runMicroCode m st
 io :: IO a -> MicroCode a
 io x = do
   r <- liftIO $ try x
-  either (abort . IOError . showExc) return $ r
+  either (abort . IOError . showExc) return r
   where
     showExc :: IOException -> String
     showExc = show
@@ -107,7 +102,7 @@ getInstr' = do
   pg <- uses msInstr unMProg
   let (lb, ub) = IA.bounds pg
   return $
-    if (lb <= i && i <= ub)
+    if lb <= i && i <= ub
     then return $ pg IA.! i
     else mzero
 

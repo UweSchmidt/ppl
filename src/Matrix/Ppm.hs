@@ -2,22 +2,22 @@
 --
 -- portable bit/grey/pixel map parsing
 -- and conversion to/from a Picture
---
--- $Id: Ppm.hs,v 1.7 2001/12/27 15:59:32 uwe Exp $
 
-module Matrix.Ppm( PNM
-          , readPicture
-          , readPNM
-          , pictureToPGM
-          , pictureToPBM
-          , showPNM
-          , showPNMbin
-          , showPicture
-          ) where
+module Matrix.Ppm
+  ( PNM
+  , readPicture
+  , readPNM
+  , pictureToPGM
+  , pictureToPBM
+  , showPNM
+  , showPNMbin
+  , showPicture
+  )
+where
 
-import Data.Char(ord,chr)
+import           Data.Char      (chr, ord)
 
-import Matrix.Picture
+import           Matrix.Picture (Matrix, Picture, mapMx)
 
 data PNM        = Pbm Int Int     (Matrix Int)
                 | Pgm Int Int Int (Matrix Int)
@@ -39,9 +39,9 @@ readPNM ("P1", str)
     = mapMx normalize pixels
       where
       (ns, rest)        = readRow 2 str
-      [width, height]   = (map read ns)::[Int]
+      [width, height]   = map read ns :: [Int]
       (pixels, _)       = readPixels width height rest
-      normalize x       = 1.0 - (read x)::Double
+      normalize x       = 1.0 - read x :: Double
 
 -- portable greymap ascii
 
@@ -49,10 +49,10 @@ readPNM ("P2", str)
     = mapMx normalize pixels
       where
       ([w, h, m], rest) = readRow 3 str
-      width             = (read w)::Int
-      height            = (read h)::Int
-      maxi              = fromInteger ((read m)::Integer) ::Double
-      normalize x       = ((read x)::Double) / maxi
+      width             = read w :: Int
+      height            = read h :: Int
+      maxi              = fromInteger (read m :: Integer) :: Double
+      normalize x       = (read x :: Double) / maxi
       (pixels, _)       = readPixels width height rest
 
 -- portable pixmap ascii
@@ -61,15 +61,16 @@ readPNM ("P3", str)
     = mapMx normalize pixels
       where
       ([w, h, m], rest) = readRow 3 str
-      width             = (read w)::Int
-      height            = (read h)::Int
-      max3              = (fromInteger ((read m)::Integer) ::Double) * 3.0
+      width             = read w :: Int
+      height            = read h :: Int
+      max3              = (fromInteger (read m :: Integer) ::Double) * 3.0
       normalize (x1, x2, x3)
-          = ( (fromInteger . toInteger) (((read x1)::Int)
-                      + ((read x2)::Int)
-                      + ((read x3)::Int)
-                      )
-            ) / max3
+          = ( fromInteger . toInteger $
+              (read x1 :: Int)
+              + (read x2 :: Int)
+              + (read x3 :: Int)
+            )
+            / max3
       (pixels, _)       = readPixels3 width height rest
 
 -- portable grey map raw
@@ -78,9 +79,9 @@ readPNM ("P5", str)
     = mapMx normalize pixels
       where
       ([w, h, m], rest) = readRow 3 str
-      width             = (read w)::Int
-      height            = (read h)::Int
-      maxi              = fromInteger ((read m)::Integer) ::Double
+      width             = read w :: Int
+      height            = read h :: Int
+      maxi              = fromInteger (read m :: Integer) :: Double
       normalize x       = (fromInteger . toInteger . ord) x / maxi
       pixels            = readChars width height (tail rest)
 
@@ -90,11 +91,11 @@ readPNM ("P6", str)
     = mapMx normalize pixels
       where
       ([w, h, m], rest) = readRow 3 str
-      width             = (read w)::Int
-      height            = (read h)::Int
-      max3              = (fromInteger ((read m)::Integer) ::Double) * 3.0
+      width             = read w :: Int
+      height            = read h :: Int
+      max3              = (fromInteger (read m :: Integer) :: Double) * 3.0
       normalize (x1, x2, x3)
-          = (fromInteger . toInteger) (ord x1 + ord x2 + ord x3) / max3
+          = (fromInteger . toInteger $ ord x1 + ord x2 + ord x3) / max3
       pixels            = read3Chars width height (tail rest)
 
 readPNM (_,_)
@@ -111,7 +112,7 @@ item str
              = item r1
          | otherwise
              = i
-         where r1 = ( drop 1 . snd . break (== '\n') . drop 1) r
+         where r1 = ( drop 1 . dropWhile (== '\n') . drop 1) r
 
 item3   :: String -> ((String, String, String), String)
 item3 str
@@ -154,14 +155,14 @@ readChars _ 0 _
     = []
 
 readChars w h s
-    = (take w s) : (readChars w (h-1) (drop w s))
+    = take w s : readChars w (h-1) (drop w s)
 
 read3Chars :: Int -> Int -> String -> Matrix (Char, Char, Char)
 read3Chars _ 0 _
     = []
 
 read3Chars w h s
-    = (take3 w s) : (read3Chars w (h-1) (drop3 w s))
+    = take3 w s : read3Chars w (h-1) (drop3 w s)
       where
       take3 0 _
           = []
@@ -197,9 +198,9 @@ pictureToPBM    = toPBM . pictureToPGM
 
 toPGM   :: PNM -> PNM
 toPGM (Pbm w h pxs)
-    = Pgm w h 1 (mapMx (\x -> 1 - x) pxs)
+    = Pgm w h 1 (mapMx (1 -) pxs)
 
-toPGM p@(Pgm _ _ _ _)
+toPGM p@Pgm{}
     = p
 
 toPGM (Ppm w h c pxs)
@@ -213,7 +214,7 @@ toPGM (Ppm w h c pxs)
 -- else first convert to PGM
 
 toPBM   :: PNM -> PNM
-toPBM p@(Pbm _ _ _)
+toPBM p@Pbm{}
     = p
 
 toPBM (Pgm w h maxi pxs)
@@ -221,7 +222,7 @@ toPBM (Pgm w h maxi pxs)
       where mapTo01 x   | x > maxi `div` 2      = 0
                         | otherwise             = 1
 
-toPBM p@(Ppm _ _ _ _)
+toPBM p@Ppm{}
     = toPBM (toPGM p)
 
 --------------------------------------------------------------------------------
@@ -250,7 +251,7 @@ showPNM (Pgm width height maxi pixels)
       ++ show maxi ++ "\n"
       ++ concatMap (concatMap ((++ "\n") . show)) pixels
 
-showPNM (Ppm _ _ _ _)
+showPNM Ppm{}
     = error "no ppm ascii format supported"
 
 -- portable grey map format (binary)
@@ -263,10 +264,10 @@ showPNMbin (Pgm width height maxi pixels)
       ++ show maxi ++ "\n"
       ++ concatMap (map chr) pixels
 
-showPNMbin (Pbm _ _ _)
+showPNMbin Pbm{}
     = error "no pbm binary output (magic number P4) supported"
 
-showPNMbin (Ppm _ _ _ _)
+showPNMbin Ppm{}
     = error "no ppm binary output (magic number P6) supported"
 
 -- private "portable float map" (ascii) for debugging

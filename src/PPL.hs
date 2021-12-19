@@ -1,27 +1,27 @@
 module Main where
 
-import           PPL.Lexer
-import           PPL.Parser
-import           PPL.SemanticAnalysis
+import           PPL.Assemble               (assemble)
+import           PPL.CodeGeneration         (codegeneration)
+import           PPL.Lexer                  (lexer, showLex)
+import           PPL.OptimizeInstr          (optimizeInstr)
+import           PPL.Parser                 (parser)
+import           PPL.SemanticAnalysis       (checkProg)
 
-import           PPL.Assemble
-import           PPL.CodeGeneration
-import           PPL.OptimizeInstr
+import           PPL.ShowAbstractSyntaxTree (showAST)
+import           PPL.ShowAttrTree           (showAttrTree)
+import           PPL.ShowCCode              (showCCode)
+import           PPL.ShowCode               (showExecutable, showExecutable1)
+import           PPL.ShowJavaCode           (showJavaCode)
 
-import           PPL.ShowAbstractSyntaxTree
-import           PPL.ShowAttrTree
-import           PPL.ShowCode
+import           PPL.ControlUnit            (execProg)
+import           PPL.Loader                 (loadExecutable)
 
-import           PPL.ShowCCode
-import           PPL.ShowJavaCode
+import           Data.Char                  (isAlphaNum)
 
-import           PPL.ControlUnit
-import           PPL.Loader
-
-import           Data.Char
-
-import           System.Environment
-import           System.IO
+import           System.Environment         (getArgs)
+import           System.IO                  (Handle, IOMode (ReadMode), hClose,
+                                             hGetContents, hPutStrLn, openFile,
+                                             stderr, stdin)
 
 processFile :: ([Char] -> IO a) -> [Char] -> IO ()
 processFile p fn
@@ -62,12 +62,8 @@ getClassName []
 getClassName (fn:_)
     = takeWhile isAlphaNum fn
 
-main    :: IO ()
-main
-    = do
-      argl <- getArgs
-      main1 argl
-
+main :: IO ()
+main = getArgs >>= main1
 
 main1 :: [String] -> IO ()
 
@@ -98,7 +94,7 @@ main1 args
     = do
       hPutStrLn
         stderr
-        ("illegal arguments:" ++ concat (map (" "++) args))
+        ("illegal arguments:" ++ concatMap (" " ++) args)
       usage
 
 usage :: IO ()
@@ -106,7 +102,7 @@ usage
     = hPutStrLn
         stderr ( "Usage:\n\tpplc Option [file]\n\n"
                  ++ "process a ppl program from file or from stdin\n"
-                 ++ "version 0.2.0.1\n\n"
+                 ++ "version 0.2.0.2\n\n"
                  ++ "Options:\n"
                  ++ "\t-s, --scan\tlexical analysis\n"
                  ++ "\t-p, --parse\tsyntax analysis\n"

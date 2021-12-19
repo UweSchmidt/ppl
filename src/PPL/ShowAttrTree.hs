@@ -1,7 +1,10 @@
 module PPL.ShowAttrTree where
 
-import PPL.AbstractSyntax
-import PPL.NTree
+import           PPL.AbstractSyntax (AttrTree,
+                                     Expr (..))
+
+import           PPL.NTree          (NTree (NTree), StringNTree,
+                                     formatStringNTree)
 
 showAttrTree    :: AttrTree -> String
 showAttrTree    = formatStringNTree . atree2NTree
@@ -24,6 +27,6 @@ showSExpr (IntVal v)    = show v
 showSExpr (BoolVal v)   = show v
 showSExpr (FloatVal v)  = show v
 showSExpr (StringVal v) = "\"" ++ show v ++ "\""
-showSExpr (EmptyList)   = "[]" 
+showSExpr  EmptyList    = "[]"
 showSExpr (Ident i)     = "\"id\" " ++ i
 showSExpr e             = show e

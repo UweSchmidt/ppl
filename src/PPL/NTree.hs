@@ -10,7 +10,7 @@ formatNTree node2String pf1 pf2 (NTree n l)
        = formatNode
          ++ formatChildren pf2 l
          where
-         formatNode     = pf1 ++ concat (map trNL (node2String n)) ++ "\n"
+         formatNode     = pf1 ++ concatMap trNL (node2String n) ++ "\n"
          trNL '\n'      = "\n" ++ pf2
          trNL c         = [c]
          formatChildren _ [] = ""
@@ -38,4 +38,3 @@ formatStdNTree node2String
 formatStringNTree       :: NTree String -> String
 formatStringNTree
     = formatNTree id "---" "   "
-

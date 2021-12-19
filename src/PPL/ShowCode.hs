@@ -1,6 +1,8 @@
 module PPL.ShowCode where
 
-import PPL.Instructions
+import           PPL.Instructions (Address (..), Code, DataSeg, Dest (..),
+                                   Executable, Instr (..), Label, Opcode)
+
 
 showExecutable  :: Executable -> String
 showExecutable (is, ds)
@@ -15,7 +17,7 @@ showDS ds
     = ".data\t" ++ show ds ++ "\n"
 
 showCode        :: Code -> String
-showCode        = concat . map showInstr
+showCode        = concatMap showInstr
 
 showCode1       :: Code -> String
 showCode1       = concat . zipWith showInstrCnt [0..]

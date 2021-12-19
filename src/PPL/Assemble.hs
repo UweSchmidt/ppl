@@ -1,6 +1,9 @@
 module PPL.Assemble where
 
-import PPL.Instructions
+import           Data.Maybe       (fromMaybe)
+
+import           PPL.Instructions (Code, Dest (Disp, Symb), Executable,
+                                   Instr (Branch, Jump, Label, PushJ), Label)
 
 type LabTab     = [(Label, Int)]
 
@@ -33,7 +36,7 @@ buildLabTab lt i (_ : is)
 
 labVal          :: Label -> LabTab -> Int
 labVal lab lt
-    = maybe 0 id (lookup lab lt)
+    = fromMaybe 0 (lookup lab lt)
 
 
 noLabelInstr            :: Instr -> Bool

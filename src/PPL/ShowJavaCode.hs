@@ -2,27 +2,28 @@ module PPL.ShowJavaCode
     (showJavaCode
     ) where
 
-import PPL.Instructions
-import PPL.ShowCode
+import           PPL.Instructions (Address (..), Code, Dest (..), Executable,
+                                   Instr (..))
+
+import           PPL.ShowCode     (showOpCode)
 
 showJavaCode    :: String -> Executable -> String
 showJavaCode className (is, ds)
-    = concat (map (++ "\n")
-              [ "package ppl;"
-              , ""
-              , "import ppl.Executable;"
-              , ""
-              , "public class " ++ className ++ " extends Executable {"
-              , "    public " ++ className ++ "() {"
-              , "        super(new Instr []"
-              , "              { " ++ showJCode is
-              , "              }"
-              , "             , " ++ show ds
-              , "             );"
-              , "        }"
-              , "    }"
-              ]
-             )
+    = unlines
+      [ "package ppl;"
+      , ""
+      , "import ppl.Executable;"
+      , ""
+      , "public class " ++ className ++ " extends Executable {"
+      , "    public " ++ className ++ "() {"
+      , "        super(new Instr []"
+      , "              { " ++ showJCode is
+      , "              }"
+      , "             , " ++ show ds
+      , "             );"
+      , "        }"
+      , "    }"
+      ]
 
 showJCode       :: Code -> String
 showJCode       = foldr1 (\ x y -> x ++ "\n              , " ++ y) . map showJInstr

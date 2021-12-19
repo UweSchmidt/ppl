@@ -1,14 +1,22 @@
 module PPL.MicroCode where
 
-import           Control.Monad
+import           Control.Monad           (ap, liftM, void, (>=>))
+import           System.IO               (hPutStr, stderr)
 
-import           PPL.Error
-import           PPL.Instructions
-import           PPL.MachineArchitecture
-import           PPL.ShowMS
-import           PPL.Picture (Picture)
 
-import           System.IO
+import           PPL.Error               (Error (..))
+import           PPL.Instructions        (Address, Instr)
+import           PPL.MachineArchitecture (MS, MV (..), allocFrame, clearStatus,
+                                          emptyStack, freeFrame, getInstr,
+                                          getPc, incrPc, legalMemAddr, legalPc,
+                                          nullFrames, popValue, pushValue,
+                                          readMem, setExc, setPc, writeMem)
+import           PPL.Picture             (Picture)
+import           PPL.ShowMS              (showFrameStackUnderflow,
+                                          showIllegalOperand,
+                                          showIllegalOperand', showIllegalPC,
+                                          showIllegalRead, showIllegalWrite,
+                                          showStackUnderflow)
 
 -- -------------------------------------------------------------------
 --
@@ -28,11 +36,10 @@ instance Monad MST where
         = MST ( \s -> return (s, Just v))
 
     MST cmd >>= f
-        = MST ( \s ->
-                 cmd s >>= \ (s', r) ->
-                 case r of
-                 Just v  -> trans (f v) s'
-                 Nothing -> return (s', Nothing)
+        = MST ( cmd >=> \ (s', r) ->
+                  case r of
+                    Just v  -> trans (f v) s'
+                    Nothing -> return (s', Nothing)
                )
 
 -- --------------------
@@ -87,24 +94,20 @@ checkStateWith  = readStateWith
 -- lift compute and IO functions
 
 liftCompute             :: ([a] -> Error a) -> ([a] -> MST a)
-liftCompute fct
-    = \ vl -> MST ( \ s ->
-                    return (case fct vl of
-                            (OK v)      -> (s, Just v)
-                            (Error err) -> (setExc err s, Nothing)
-                           )
-                  )
+liftCompute fct vl
+    = MST $ \ s ->
+              return $ case fct vl of
+                         OK v      -> (s, Just v)
+                         Error err -> (setExc err s, Nothing)
 
 liftSvc                 :: ([a] -> IO (Error a)) -> ([a] -> MST a)
-liftSvc fct
-    = \ vl -> MST ( \ s ->
-                    do
-                    res <- fct vl
-                    return (case res of
-                            (OK v)      -> (s, Just v)
-                            (Error err) -> (setExc err s, Nothing)
-                           )
-                  )
+liftSvc fct vl
+    = MST $ \ s ->
+              do
+                res <- fct vl
+                return $ case res of
+                           OK v      -> (s, Just v)
+                           Error err -> (setExc err s, Nothing)
 
 -- --------------------
 --
@@ -124,7 +127,7 @@ trc fct
 
 run :: MS -> MST () -> IO()
 run initState (MST cmd)
-    = cmd initState >> return ()
+    = void $ cmd initState
 
 -- --------------------
 --
@@ -132,9 +135,8 @@ run initState (MST cmd)
 
 throw           :: String -> MST a
 throw err
-    = MST ( \s ->
+    = MST $ \s ->
             return (setExc err s, Nothing)
-          )
 
 -- --------------------
 --
@@ -142,12 +144,10 @@ throw err
 
 succeed :: MST () -> MST ()
 succeed (MST cmd)
-    = MST ( \ s ->
-            cmd s >>= \ (s', r) ->
-            case r of
-            Just _v -> return (s', r)
-            Nothing -> return (s', Just ())
-          )
+    = MST $ cmd >=> \ (s', r) ->
+              case r of
+                Just _v -> return (s', r)
+                Nothing -> return (s', Just ())
 
 -- -------------------------------------------------------------------
 

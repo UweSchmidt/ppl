@@ -1,5 +1,3 @@
--- $Id: Picture.hs,v 1.13 2001/12/11 22:30:14 uwe Exp $
-
 module Matrix.Picture
     ( Picture
     , module Matrix.Matrix
@@ -25,8 +23,8 @@ module Matrix.Picture
 
     ) where
 
-import Matrix.Matrix
-import Data.List(mapAccumL)
+import           Data.List     (mapAccumL)
+import           Matrix.Matrix
 
 type Picture    = Matrix Double
 
@@ -45,7 +43,7 @@ gammaPic        :: Double -> Picture -> Picture
 gammaPic g      = mapMx (gamma g)
 
 invertPic       :: Picture -> Picture
-invertPic       = mapMx (\ x -> 1.0 - x)
+invertPic       = mapMx (1.0 -)
 
 bitmapPic       :: Picture -> Picture
 bitmapPic       = snd . sumUpCol 0.5
@@ -183,6 +181,6 @@ resizeHeight h p
                   . snd
                   . mapAccumL
                         (wSums h (length p))
-                        (0, (replicate (length (head p)) 0.0)) $ p
+                        (0, replicate (length (head p)) 0.0) $ p
     where
     ha = heightMx p

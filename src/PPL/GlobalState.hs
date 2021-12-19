@@ -1,8 +1,9 @@
 module PPL.GlobalState where
 
-import           Control.Monad
+import           Control.Monad ( ap, liftM )
+import           Data.Maybe ( fromMaybe )
 
-import           PPL.Instructions
+import           PPL.Instructions ( Address )
 
 type State      = [(Attr, Value)]
 
@@ -33,7 +34,7 @@ instance Applicative GS where
 
 instance Monad GS where
     return v
-        = GS (\s -> (s,v))
+        = GS (,v)
 
     GS sm0 >>= fsm1
         = GS (\s0 ->
@@ -51,9 +52,7 @@ initialState = []
 
 lookupAttr      :: Attr -> State -> Value
 lookupAttr a s
-    = case lookup a s of
-      Nothing   -> Unknown
-      Just val  -> val
+    = fromMaybe Unknown $ lookup a s
 
 updateValue     :: Attr -> Value -> State -> State
 updateValue a v s

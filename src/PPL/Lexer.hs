@@ -1,9 +1,10 @@
 module PPL.Lexer where
 
-import PPL.Symbol
+import           Data.Char  (isAlpha, isAlphaNum, isDigit, isSpace)
+import           Data.List  (isPrefixOf)
 
-import Data.Char
-import Data.List
+import           PPL.Symbol (Symbol, Token (..))
+
 
 lexer           :: String -> [Symbol]
 
@@ -25,8 +26,7 @@ lexer cs                        -- symbols
     | found     = (tok, cs1)
                   : lexer (drop (length cs1) cs)
     where
-    sys         = filter (\ (ts,_) ->
-                          isPrefixOf ts cs
+    sys         = filter (\ (ts, _) ->  ts  `isPrefixOf` cs
                          ) symbols
     found       = not (null sys)
     sy          = head sys
@@ -155,7 +155,7 @@ lexId cs
 
 -- --------------------
 
-lexComment              :: String -> [Symbol]                      
+lexComment              :: String -> [Symbol]
 
 lexComment ('\n':cs)
     = lexer cs          -- end of line
@@ -174,7 +174,7 @@ lexString ss ('\"':cs)
     = (StringConst, reverse ss) : lexer cs
 
 lexString ss ('\\':c:cs)        -- quoted char
-    = lexString ((decodeQuoteChar c):ss) cs
+    = lexString (decodeQuoteChar c : ss) cs
 
 lexString ss (c:cs)             -- unquoted char
     = lexString (c:ss) cs
@@ -195,7 +195,7 @@ decodeQuoteChar ch  = ch
 
 showLex                 :: [Symbol] -> String
 showLex
-    = concat . map showToc
+    = concatMap showToc
       where
       showToc (tok, txt)
           = take 16 (show tok ++ replicate 16 ' ') ++

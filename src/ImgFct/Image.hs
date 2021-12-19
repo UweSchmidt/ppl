@@ -1,24 +1,14 @@
 module ImgFct.Image
 where
 
-import Data.Array.Unboxed
-
-import Data.List
-    ( mapAccumL
-    )
-import Data.Word
-
-import System.FilePath
-    ( takeExtension
-    , replaceExtension
-    )
-import System.Directory
-    ( doesFileExist
-    )
-
-import           System.IO
+import           Data.Array.Unboxed    (UArray, listArray, (!))
 import qualified Data.ByteString       as B
 import qualified Data.ByteString.Char8 as C
+import           Data.List             (mapAccumL)
+import           Data.Word             (Word8)
+import           System.Directory      (doesFileExist)
+import           System.FilePath       (replaceExtension, takeExtension)
+import           System.IO             (IOMode (ReadMode), hClose, openFile)
 
 -- ----------------------------------------
 
@@ -48,7 +38,7 @@ type Cont       = Geo Double
 
 data Image ix a
     = Image { imgGeo :: !(Geo ix)
-            , imgCol ::  (Colored a)
+            , imgCol ::  Colored a
             }
 
 type ImgMap ix  = Image ix (Channel ix)
@@ -68,7 +58,7 @@ merge           :: (a -> b -> c) ->
                    (x -> y -> b) ->
                    (x -> y -> c)
 
-merge op f1 f2  = \ x y -> f1 x y `op` f2 x y
+merge op f1 f2 x y  = f1 x y `op` f2 x y
 
 -- ----------------------------------------
 
@@ -164,8 +154,8 @@ foldColored gf rgbf af (Alpha a i) = af a (foldColored gf rgbf af i)
 
 
 unifyColored    :: Colored a -> Colored a -> (Colored a, Colored a)
-unifyColored (Grey x)    c2@(RGB _ _ _) = (RGB x x x, c2       )
-unifyColored c1@(RGB _ _ _) (Grey x)    = (c1       , RGB x x x)
+unifyColored (Grey x)    c2@RGB{}       = (RGB x x x, c2       )
+unifyColored c1@RGB{}       (Grey x)    = (c1       , RGB x x x)
 unifyColored (Alpha a1 i1) (Alpha a2 i2)= let
                                           (i1', i2') = unifyColored i1 i2
                                           in
@@ -198,9 +188,9 @@ unifyColorChannels _a1 _a2 c1 c2
 -- overlay two ColorChannels, result is the most general ColorChannel required
 
 overlayColorChannels    :: (ColorChannel ix -> ColorChannel ix -> ColorChannel ix)
-overlayColorChannels c1@(Grey _)    _   = c1
-overlayColorChannels c1@(RGB _ _ _) _   = c1
-overlayColorChannels c1@(Alpha _ _) c2  = overlayAlpha c1 c2
+overlayColorChannels c1@Grey{}      _   = c1
+overlayColorChannels c1@RGB{}       _   = c1
+overlayColorChannels c1@Alpha{}     c2  = overlayAlpha c1 c2
     where
     overlayAlpha c1'@(Alpha a1 _i1) (Alpha a2 i2)
         = Alpha ra (overlayAlpha c1' i2)
@@ -225,7 +215,7 @@ addAlphaChannel a c1    = Alpha a c1
 
 addAlphaMask            :: (Ord ix, Num ix) =>
                            Geo ix -> ColorChannel ix -> ColorChannel ix
-addAlphaMask g c        = addAlphaChannel (rectangleChannel g) c
+addAlphaMask g          = addAlphaChannel (rectangleChannel g)
 
 toGreyChannel           :: ColorChannel ix -> ColorChannel ix
 toGreyChannel           = foldColored Grey rgb2Grey alpha2Grey
@@ -257,8 +247,8 @@ addChannels c1 c2 x y
                 = (c1 x y + c2 x y) / 2
 
 mergeChannels   :: Lightness -> Channel ix -> Channel ix -> Channel ix
-mergeChannels a c1 c2
-                = \ x y -> a * c1 x y + (1 - a) * c2 x y
+mergeChannels a c1 c2 x y
+                = a * c1 x y + (1 - a) * c2 x y
 
 mergeChannelsA  :: Channel ix -> Channel ix -> Channel ix -> Channel ix
 mergeChannelsA a1 c1 c2 x y
@@ -273,24 +263,25 @@ invertChannel   :: Channel ix -> Channel ix
 invertChannel   = ((1 -) `on2`)
 
 addChannelSeq   :: [Channel ix] -> Channel ix
-addChannelSeq cs
-                = \ x y -> ( sum (map (\ c -> c x y) cs)
-                             / fromIntegral (length cs)
-                           )
+addChannelSeq cs x y
+                = sum (map (\ c -> c x y) cs)
+                  /
+                  fromIntegral (length cs)
+
 
 rectangleChannel        :: (Num ix, Ord ix) => Geo ix -> Channel ix
-rectangleChannel (Geo w h)
-                = \ x y -> ( if 0 <= x && x < w && 0 <= y && y < h
-                             then light
-                             else dark
-                           )
+rectangleChannel (Geo w h) x y
+                = if 0 <= x && x < w && 0 <= y && y < h
+                  then light
+                  else dark
+
 
 mkArray8Channel         :: Raster -> [Lightness] -> RasterChannel
 mkArray8Channel (Geo w h) ls
     = at
     where
     toWord8     :: Lightness -> Word8
-    toWord8 x   = toEnum (((floor (x * 256))::Int) `max` 0 `min` 255)
+    toWord8 x   = toEnum ((floor (x * 256) :: Int) `max` 0 `min` 255)
 
     word8array :: UArray Int Word8
     word8array = listArray (0, w * h - 1) (map toWord8 ls)
@@ -445,11 +436,11 @@ instance Channels Colored where
     blue        (Alpha _ i)     = blue i
 
     lumi        (Grey x)        = x
-    lumi        (RGB _ _ _)     = error "lumi called for RGB"
+    lumi         RGB{}          = error "lumi called for RGB"
     lumi        (Alpha _ i)     = lumi i
 
     alpha       (Grey _)        = error "alpha called for Grey"
-    alpha       (RGB _ _ _)     = error "alpha called for RGB"
+    alpha        RGB{}          = error "alpha called for RGB"
     alpha       (Alpha a _)     = a
 
 
@@ -457,7 +448,7 @@ instance Channels Colored where
     isGrey      (Alpha _ i)     = isGrey i
     isGrey      _               = False
 
-    isRGB       (RGB _ _ _)     = True
+    isRGB        RGB{}          = True
     isRGB       (Alpha _ i)     = isRGB i
     isRGB  _                    = False
 
@@ -528,9 +519,9 @@ readPNM ("P2", str)
     = mkGrey (mkGeo w h) at
       where
       ([w', h', m'], rest)      = readRow 3 str
-      w         = (read w')::Int
-      h         = (read h')::Int
-      m         = (read m')::Lightness
+      w         = read w' :: Int
+      h         = read h' :: Int
+      m         = read m' :: Lightness
       l         = w * h
       pixels    = fst . readRow l $ rest
 
@@ -551,9 +542,9 @@ readPNM ("P3", str)
     = mkRGB (mkGeo w h) (at 0) (at 1) (at 2)
       where
       ([w', h', m'], rest)      = readRow 3 str
-      w         = (read w')::Int
-      h         = (read h')::Int
-      m         = (read m')::Lightness
+      w         = read w' :: Int
+      h         = read h' :: Int
+      m         = read m' :: Lightness
       len       = w * h * 3
       pixels    = fst . readRow len $ rest
 
@@ -574,9 +565,9 @@ readPNM ("P5", str)
     = mkGrey (mkGeo w h) at
       where
       ([w', h', m'], rest)      = readRow 3 str
-      w         = (read w')::Int
-      h         = (read h')::Int
-      m         = (read m')::Lightness
+      w         = read w' :: Int
+      h         = read h' :: Int
+      m         = read m' :: Lightness
       l         = w * h
 
       bytes     :: [Word8]
@@ -596,9 +587,9 @@ readPNM ("P6", str)
     = mkRGB (mkGeo w h) (at 0) (at 1) (at 2)
       where
       ([w', h', m'], rest)      = readRow 3 str
-      w         = (read w')::Int
-      h         = (read h')::Int
-      m         = (read m')::Lightness
+      w         = read w' :: Int
+      h         = read h' :: Int
+      m         = read m' :: Lightness
       len       = w * h * 3
 
       bytes     :: [Int]
@@ -629,7 +620,7 @@ item str
          | otherwise
              = i
          where
-         r1 = ( drop 1 . snd . break (== '\n') . drop 1) r
+         r1 = ( drop 1 . dropWhile (== '\n') . drop 1) r
 
 readFct :: (String -> (a, String)) ->
            Int ->
@@ -718,7 +709,7 @@ writeImageFile dst img
     = B.writeFile dst' (C.pack (showImage True img))
       where
       dst'      = replaceExtension dst (defaultExt ext)
-      ext       = takeExtension $ dst
+      ext       = takeExtension dst
       defaultExt e
           | e `elem` ["", "pgm"] && isGrey img =      ".pgm"
           | e `elem` ["", "ppm"] && isRGB  img =      ".ppm"
@@ -906,7 +897,7 @@ shrink n m      = rasterPixMap . mapImage (partGeo n m) shrink'
                               y' <- [ m * y .. m * (y + 1) - 1 ]
                             ]
                         / fromIntegral (n * m)
-                              
+
 shift           :: (Num ix, Ord ix, Show ix) =>
                    ix -> ix -> ImgMap ix -> ImgMap ix
 shift w h

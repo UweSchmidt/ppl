@@ -1,6 +1,6 @@
 module PPL.StateTrans where
 
-import Control.Monad
+import Control.Monad ( ap, liftM )
 
 newtype StateTrans s a = ST ( s -> (s, Maybe a))
 
@@ -23,7 +23,7 @@ instance Monad (StateTrans s) where
              )
 
 instance Applicative (StateTrans s) where
-  pure v = ST (\s -> (s, Just v))
+  pure v = ST (, Just v)
   (<*>)  = ap
 
 instance Functor (StateTrans s) where

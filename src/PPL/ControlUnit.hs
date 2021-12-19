@@ -2,11 +2,23 @@ module PPL.ControlUnit
     (execProg)
 where
 
-import PPL.Instructions
-import PPL.MachineArchitecture
-import PPL.MicroCode
-import PPL.OPCode
-import PPL.ShowMS
+import           Control.Monad           (void, when)
+
+import           PPL.Instructions        (Dest (Disp), Instr (..))
+
+import           PPL.MachineArchitecture (MS, statusIsOk, statusIsTerminated)
+
+import           PPL.MicroCode           (MST (MST), allocSF, checkNotUndef,
+                                          checkStateWith, freeSF, getProgCount,
+                                          incrProgCount, loadInstr, popInt,
+                                          popMV, popRA, pushFloat, pushInt,
+                                          pushList, pushMV, pushRA, pushString,
+                                          pushUndef, readMV, setProgCount,
+                                          succeed, throw, trc, writeMV)
+
+import           PPL.OPCode              (exOP, exSVC)
+
+import           PPL.ShowMS              (showCurInstr, showMS)
 
 -- -------------------------------------------------------------------
 -- exec program
@@ -17,12 +29,12 @@ execProg
 
 runProg :: MST () -> MS -> IO ()
 runProg (MST fct) initState
-    = fct initState >> return ()
+    = void $ fct initState
 
 startProg       :: MST ()
 startProg
     = do
-      trc (\_ -> "start execution\n")
+      trc (const "start execution\n")
       continueProg
 
 continueProg    :: MST ()
@@ -53,7 +65,7 @@ checkMStatus
 
 termProg                :: MST ()
 termProg
-    = trc (\_ -> "\nexecution terminated\n")
+    = trc (const "\nexecution terminated\n")
 
 -- -------------------------------------------------------------------
 
@@ -102,12 +114,10 @@ intpInstr (Jump (Disp d))
 intpInstr (Branch cond (Disp d))
     = do
       b <- popInt
-      if (b /= 0) == cond
-        then (do
-              pc' <- getProgCount
-              setProgCount (pc' - 1 + d)
-             )
-        else return ()
+      when ((b /= 0) == cond) $
+        do
+          pc' <- getProgCount
+          setProgCount (pc' - 1 + d)
 
 intpInstr (Entry len)
     = allocSF len

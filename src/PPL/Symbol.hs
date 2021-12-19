@@ -49,7 +49,7 @@ data Token
     | Dot               -- .
     | PlusOp            -- +
     | MinusOp           -- -
-    | MultOp            -- *
+    | MultOp            --  *
     | DivOp             -- /
     | EqOp              -- =
     | NeOp              -- /=

@@ -38,7 +38,7 @@ module Matrix.Matrix
     , zipWithMx
     ) where
 
-import Data.List
+import           Data.List (transpose)
 
 type Matrix a           = [[a]]
 
@@ -147,9 +147,9 @@ cutMx x y w h
 cropMx          :: Int -> Int -> Int -> Int -> TransformMatrix a
 cropMx x y w h
     | x < 0
-        = cropMx 0 y w h . map (drop (0 - x))
+        = cropMx 0 y w h . map (drop (negate x))
     | y < 0
-        = cropMx x 0 w h . drop (0 - y)
+        = cropMx x 0 w h . drop (negate y)
     | otherwise
         = cutMx 0 0 (w - x) (h - y)
 
@@ -179,8 +179,8 @@ shiftMx n m p
     (w, h) = dimMx p
 
 partHMx         :: Int -> Matrix a -> [Matrix a]
-partHMx n
-    = part n
+partHMx
+    = part
 
 partVMx         :: Int -> Matrix a -> [Matrix a]
 partVMx n
@@ -220,7 +220,7 @@ concatVMx
           | null . head $ s
               = []
           | otherwise
-              = (concat . map head $ s) : (conc . map tail $ s)
+              = concatMap head s : (conc . map tail $ s)
 
 -- -------------------------------------------------------------------
 

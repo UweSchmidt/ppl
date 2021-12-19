@@ -1,11 +1,16 @@
-module PPL.ShowMS where
+module PPL.ShowMS
+where
 
-import PPL.Instructions
-import PPL.MachineArchitecture
-import PPL.Picture
-import PPL.ShowCode
+import           Data.Array              (bounds, elems, (!))
 
-import Data.Array
+import           PPL.Instructions        (Address (..), Instr)
+import           PPL.MachineArchitecture (MProg,
+                                          MS (frames, instr, mem, pc, stack, status),
+                                          MStatus (..), MV (..), Mem, Stack,
+                                          legalPc)
+import           PPL.Picture             (heightMx, widthMx)
+import           PPL.ShowCode            (showAddr, showCode1, showInstr,
+                                          showInstrCnt)
 
 -- -------------------------------------------------------------------
 
@@ -37,7 +42,7 @@ showMSI ms
 
 showMem         :: Mem -> String
 showMem
-    = concat . map showCell . zip [0..]
+    = concatMap showCell . zip [0..]
 
 showCell        :: (Int, MV) -> String
 showCell (i,v)
@@ -48,7 +53,7 @@ showFrames []
     = "\t\t<empty>\n"
 
 showFrames fs
-    = concat . map showFrame . zip [0..] $ fs
+    = concatMap showFrame . zip [0..] $ fs
 
 showFrame       :: (Int, Mem) -> String
 showFrame (i,f)
@@ -70,7 +75,7 @@ showStack []
     = "\t\t<empty>\n"
 
 showStack s
-    = concat . map showCell . zip [0..] $ s
+    = concatMap showCell . zip [0..] $ s
 
 -- dump program segment
 
@@ -88,7 +93,7 @@ showMV (VFloat f)       = show f
 showMV (VString s)      = show s
 showMV (VPic p)         = "<" ++ show (widthMx p) ++ "x" ++ show (heightMx p) ++ ">"
 showMV (VList [])       = "[]"
-showMV (VList l)        = "[" ++ (foldr1 (\x y -> x ++ ", " ++ y) (map showMV l)) ++ "]"
+showMV (VList l)        = "[" ++ foldr1 (\x y -> x ++ ", " ++ y) (map showMV l) ++ "]"
 showMV (VCodeAddr a)    = "instr[" ++ show a ++ "]"
 
 showTag         :: String -> String

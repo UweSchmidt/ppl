@@ -3,9 +3,11 @@ module PPL.OptimizeInstr
     )
 where
 
-import PPL.Instructions
+import           Data.Maybe       (fromMaybe, isJust)
 
-import Data.Maybe
+import           PPL.Instructions (Address (..), Code, Dest (Symb), Executable,
+                                   Instr (..), Label, Opcode (..))
+
 
 type LabSubst   = [(Label, Label)]
 
@@ -64,9 +66,7 @@ insLabSubst l1 l2 lt
 
 newLabName      :: LabSubst -> Label -> Label
 newLabName lt l
-    = case lookup l lt of
-      Just l1 -> l1
-      Nothing -> l
+    = fromMaybe l $ lookup l lt
 
 renameLabels    :: LabSubst -> Code -> Code
 
@@ -98,11 +98,11 @@ renameLab _lt i
 
 usedLabels      :: Code -> [Label]
 usedLabels
-    = concat . map lab
-      where
-      lab (Branch _ (Symb l))   = [l]
-      lab (Jump     (Symb l))   = [l]
-      lab _                     = []
+    = concatMap lab
+  where
+    lab (Branch _ (Symb l))   = [l]
+    lab (Jump     (Symb l))   = [l]
+    lab _                     = []
 
 removeUnusedLabels      :: Code -> Code
 removeUnusedLabels cs
@@ -266,7 +266,7 @@ optimizeCalls lt cs@( Label sl
           | target == sl && newLabName lt l1 == el
               = Jump (Symb sl1)
                 : optimize1Fct cs1
-                
+
           | newLabName lt l1 == el
               = Load (LocA 0)
                 : Exit

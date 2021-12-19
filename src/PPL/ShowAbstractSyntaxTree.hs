@@ -1,7 +1,11 @@
 module PPL.ShowAbstractSyntaxTree where
 
-import PPL.AbstractSyntax
-import PPL.NTree
+import           PPL.AbstractSyntax (Expr (BlockExpr, BoolVal, Call, FloatVal, Ident, IntVal, StringVal),
+                                     Program (..), Stmt (..),
+                                     Type (FctType, ListType))
+
+import           PPL.NTree          (NTree (..), StringNTree, formatStringNTree)
+
 
 showAST         :: Program -> String
 showAST         = formatStringNTree . ast2NTree
@@ -23,7 +27,7 @@ stmt2NTree (FctDecl fn pl t body)
     = NTree "FctDecl" ( [ expr2NTree fn ]
                         ++
                         map stmt2NTree pl
-                        ++ 
+                        ++
                         [ type2NTree t
                         , expr2NTree body
                         ]
@@ -33,7 +37,7 @@ stmt2NTree (ProcDecl fn pl body)
     = NTree "ProcDecl" ( [ expr2NTree fn ]
                          ++
                          map stmt2NTree pl
-                         ++ 
+                         ++
                          [stmt2NTree body]
                       )
 
@@ -88,10 +92,10 @@ expr2NTree e
 type2NTree      :: Type -> NTree String
 
 type2NTree (ListType t)
-    = NTree ("ListType") [type2NTree t]
+    = NTree "ListType" [type2NTree t]
 
 type2NTree (FctType rt ats)
-    = NTree ("FctType") (map type2NTree (rt:ats))
+    = NTree "FctType" (map type2NTree (rt:ats))
 
 type2NTree e
     = NTree (show e) []

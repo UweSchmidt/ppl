@@ -3,13 +3,30 @@ module PPL.OPCode
     , exSVC
     ) where
 
-import PPL.Instructions
-import PPL.MachineArchitecture
-import PPL.MicroCode
-import PPL.Picture
-import PPL.ShowMS
+import           System.Environment      (getArgs)
 
-import System.Environment
+import           PPL.Instructions        (Opcode (..), Subroutine)
+import           PPL.MachineArchitecture (programAborted, programTerminated)
+import           PPL.MicroCode           (MST, checkGT0, checkListIx, checkNE0,
+                                          io, popFloat, popInt, popList,
+                                          popList1, popListPic, popMV, popPic,
+                                          popString, pushFloat, pushInt,
+                                          pushList, pushListPic, pushListString,
+                                          pushMV, pushPic, pushString,
+                                          pushUndef, throw, trc)
+import           PPL.Picture             (Picture, aboveMx, bitmapPic,
+                                          blackAndWhitePic, concatHMx,
+                                          concatVMx, cutMx, diffPic, flipDMx,
+                                          flipHMx, flipVMx, gammaPic, greyPic,
+                                          heightMx, invDiffPic, invMeanPic,
+                                          invertPic, maxPic, meanPic, mergeHMx,
+                                          mergeVMx, minPic, mulPic, partHMx,
+                                          partVMx, pasteMx, readPictureFile,
+                                          reduceColorPic, replicateMx,
+                                          resizePic, rotateMx, scaleMx, shiftMx,
+                                          shrinkMx, sideBySideMx, splitHMx,
+                                          splitVMx, widthMx, writePictureFile)
+import           PPL.ShowMS              (showMS)
 
 -- ----------------------------------------
 --
@@ -202,7 +219,7 @@ exInt2 = exOP2 popInt popInt pushInt
 
 exFloat2' :: (c -> MST ())
           ->(Double -> Double -> c) -> MST ()
-exFloat2' push = exOP2 popFloat popFloat push
+exFloat2' = exOP2 popFloat popFloat
 
 exFloat2 :: (Double -> Double -> Double) -> MST ()
 exFloat2 = exFloat2' pushFloat
@@ -217,7 +234,7 @@ exPic1 = exOP1 popPic pushPic
 
 exPic2' :: (c -> MST ())
           ->(Picture -> Picture -> c) -> MST ()
-exPic2' push = exOP2 popPic popPic push
+exPic2' = exOP2 popPic popPic
 
 exPic2 :: (Picture -> Picture -> Picture) -> MST ()
 exPic2 = exPic2' pushPic
@@ -250,7 +267,7 @@ exSVC "writeln"
        pushUndef
 
 exSVC "getArgs"
-  = do argl <- io $ getArgs
+  = do argl <- io getArgs
        pushListString $ drop 2 argl
 
 exSVC "abort"

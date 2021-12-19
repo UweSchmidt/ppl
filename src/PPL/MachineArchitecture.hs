@@ -1,9 +1,10 @@
 module PPL.MachineArchitecture where
 
-import PPL.Instructions
-import PPL.Picture
+import           Data.Array.IArray (Array, IArray (bounds), (!))
 
-import Data.Array.IArray
+import           PPL.Instructions  (Address (..), Instr)
+import           PPL.Picture       (Picture)
+
 
 type MProg      = Array Int Instr       -- the machine programm
 
@@ -54,13 +55,13 @@ type MState     = MS
 -- pc access
 
 getPc           :: MS -> Int
-getPc ms        = pc ms
+getPc           = pc
 
 setPc           :: Int -> MS -> MS
 setPc pc1 ms    = ms { pc = pc1 }
 
 incrPc          :: MS -> MS
-incrPc ms       = ms { pc = (getPc ms + 1) }
+incrPc ms       = ms { pc = getPc ms + 1 }
 
 legalPc         :: MS -> Bool
 legalPc ms
@@ -96,7 +97,7 @@ legalMemAddr (LocA addr) ms
 readMem         :: Address -> MS -> MV
                 -- pre: legalMemAddr
 readMem (AbsA addr) ms
-    = (mem ms) !! addr
+    = mem ms !! addr
 
 readMem (LocA addr) ms
     = head (frames ms) !! addr
@@ -138,7 +139,7 @@ nullFrames ms   = null (frames ms)
 
 pushValue :: MV -> MS -> MS
 pushValue val ms
-    = ms { stack = (val : stack ms) }
+    = ms { stack = val : stack ms }
 
 popValue        :: MS -> (MS, MV)
 popValue ms

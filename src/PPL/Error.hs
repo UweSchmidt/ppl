@@ -1,6 +1,6 @@
 module PPL.Error where
 
-import           Control.Monad
+import Control.Monad ( ap, liftM )
 
 data Error a
     = OK a
@@ -18,4 +18,3 @@ instance Monad Error where
     (OK x)    >>= k     = k x
     (Error e) >>= _     = Error e
     return x            = OK x
-
